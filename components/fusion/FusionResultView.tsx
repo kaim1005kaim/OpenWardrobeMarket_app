@@ -65,45 +65,45 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
       contentContainerStyle={{ paddingBottom: 24 }}
     >
       <View className="px-6 pt-6">
-        {/* Triptych View Selector (if triptych available) */}
+        {/* Triptych View Selector (if triptych available) - Minimal Style */}
         {hasTriptych && (
           <Animated.View
             style={{ opacity: fadeAnim }}
-            className="mb-4"
+            className="mb-6"
           >
-            <View className="flex-row justify-center gap-3">
+            <View className="flex-row justify-center space-x-8">
               <TouchableOpacity
-                className={`px-6 py-3 rounded-full ${activeView === 'front' ? 'bg-darkTeal' : 'bg-ink-200'}`}
                 onPress={() => setActiveView('front')}
                 activeOpacity={0.7}
+                className={`pb-2 ${activeView === 'front' ? 'border-b-2 border-darkTeal' : ''}`}
               >
                 <Text
-                  className={activeView === 'front' ? 'text-offwhite' : 'text-ink-600'}
-                  style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1.5 }}
+                  className={activeView === 'front' ? 'text-darkTeal' : 'text-ink-600/60'}
+                  style={{ fontFamily: 'Trajan', fontSize: 12, letterSpacing: 2 }}
                 >
                   FRONT
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                className={`px-6 py-3 rounded-full ${activeView === 'side' ? 'bg-darkTeal' : 'bg-ink-200'}`}
                 onPress={() => setActiveView('side')}
                 activeOpacity={0.7}
+                className={`pb-2 ${activeView === 'side' ? 'border-b-2 border-darkTeal' : ''}`}
               >
                 <Text
-                  className={activeView === 'side' ? 'text-offwhite' : 'text-ink-600'}
-                  style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1.5 }}
+                  className={activeView === 'side' ? 'text-darkTeal' : 'text-ink-600/60'}
+                  style={{ fontFamily: 'Trajan', fontSize: 12, letterSpacing: 2 }}
                 >
                   SIDE
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                className={`px-6 py-3 rounded-full ${activeView === 'back' ? 'bg-darkTeal' : 'bg-ink-200'}`}
                 onPress={() => setActiveView('back')}
                 activeOpacity={0.7}
+                className={`pb-2 ${activeView === 'back' ? 'border-b-2 border-darkTeal' : ''}`}
               >
                 <Text
-                  className={activeView === 'back' ? 'text-offwhite' : 'text-ink-600'}
-                  style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1.5 }}
+                  className={activeView === 'back' ? 'text-darkTeal' : 'text-ink-600/60'}
+                  style={{ fontFamily: 'Trajan', fontSize: 12, letterSpacing: 2 }}
                 >
                   BACK
                 </Text>
@@ -134,7 +134,7 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
           </View>
         </Animated.View>
 
-        {/* AI Design Note (v2.0: Display fusion_concept) */}
+        {/* AI Design Note (v2.0: Display fusion_concept) - Paper Texture */}
         {fusionSpec?.fusion_concept && (
           <Animated.View
             style={{
@@ -142,14 +142,14 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
             }}
             className="mb-6"
           >
-            <View className="bg-ink-50 rounded-3xl p-6 border border-ink-200">
+            <View className="rounded-3xl p-6 border border-ink-200" style={{ backgroundColor: '#F8F7F4' }}>
               <View className="flex-row items-center mb-4">
                 <FontAwesome name="pencil" size={18} color="#5B7DB1" />
                 <Text
                   className="text-ink-900 ml-2"
                   style={{
                     fontFamily: 'Trajan',
-                    fontSize: 16,
+                    fontSize: 14,
                     letterSpacing: 2,
                   }}
                 >
@@ -157,7 +157,7 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
                 </Text>
               </View>
 
-              <Text className="text-ink-700 text-base leading-6 italic mb-4">
+              <Text className="text-ink-600 text-base leading-6 italic mb-4">
                 "{fusionSpec.fusion_concept}"
               </Text>
 
@@ -188,7 +188,7 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
             }}
             className="mb-6"
           >
-            <View className="bg-ink-50 rounded-3xl p-6 border border-ink-200">
+            <View className="rounded-3xl p-6 border border-ink-200" style={{ backgroundColor: '#F8F7F4' }}>
               <View className="flex-row items-center mb-3">
                 <FontAwesome name="lightbulb-o" size={18} color="#5B7DB1" />
                 <Text
@@ -218,7 +218,7 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
             }}
             className="mb-6"
           >
-            <View className="bg-ink-50 rounded-3xl p-6 border border-ink-200">
+            <View className="rounded-3xl p-6 border border-ink-200" style={{ backgroundColor: '#F8F7F4' }}>
               <Text
                 className="text-ink-900 mb-4"
                 style={{
@@ -297,18 +297,18 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
           </Animated.View>
         )}
 
-        {/* Action Buttons */}
-        <View className="gap-3">
+        {/* Action Buttons - Outline Style */}
+        <View className="gap-4">
           <TouchableOpacity
-            className="bg-darkTeal rounded-2xl py-4 items-center"
+            className="border-2 border-darkTeal rounded-2xl py-4 items-center active:bg-darkTeal/5"
             activeOpacity={0.8}
             onPress={onSaveToWardrobe}
           >
             <Text
-              className="text-offwhite"
+              className="text-darkTeal"
               style={{
                 fontFamily: 'Trajan',
-                fontSize: 16,
+                fontSize: 14,
                 letterSpacing: 2,
               }}
             >
@@ -318,15 +318,15 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
 
           {onClose && (
             <TouchableOpacity
-              className="bg-ink-200 rounded-2xl py-4 items-center"
+              className="border border-ink-200 rounded-2xl py-4 items-center active:bg-ink-900/5"
               activeOpacity={0.8}
               onPress={onClose}
             >
               <Text
-                className="text-ink-700"
+                className="text-ink-600"
                 style={{
                   fontFamily: 'Trajan',
-                  fontSize: 16,
+                  fontSize: 14,
                   letterSpacing: 2,
                 }}
               >

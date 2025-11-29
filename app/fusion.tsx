@@ -282,26 +282,21 @@ export default function FusionScreen() {
   return (
     <View className="flex-1 bg-background">
       <SafeAreaView className="flex-1" edges={['top']}>
-        {/* Header */}
-        <View className="flex-row items-center justify-between px-6 py-2 border-b border-ink-200">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-            className="flex-row items-center"
-          >
-            <FontAwesome name="chevron-left" size={20} color="#1a3d3d" />
-            <Text className="text-ink-900 ml-2 text-base">戻る</Text>
-          </TouchableOpacity>
-
-          <Text
-            className="text-ink-900"
-            style={{ fontFamily: 'Trajan', fontSize: 18, letterSpacing: 2 }}
-          >
-            FUSION
-          </Text>
-
-          <View style={{ width: 60 }} />
-        </View>
+        {/* Floating Back Button - Immersive Style */}
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          className="absolute top-12 left-6 z-50 w-10 h-10 items-center justify-center rounded-full bg-white/20"
+          style={{
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 4,
+          }}
+        >
+          <FontAwesome name="chevron-left" size={20} color="#1a3d3d" />
+        </TouchableOpacity>
 
         {renderContent()}
       </SafeAreaView>

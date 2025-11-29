@@ -10,12 +10,14 @@ module.exports = {
       colors: {
         accent: '#FF7A1A',
         darkTeal: '#1a3d3d',
-        background: '#EEECE6',
+        background: '#F2F0E9', // Rich & Minimal: 和紙のような温かみのあるオフホワイト
         ink: {
-          900: '#111111',
+          900: '#1A1A1A', // 墨色（完全な黒ではない）
           700: '#3A3A3A',
+          600: '#5A5A5A', // セカンダリテキスト
           400: '#777777',
-          200: '#EAEAEA'
+          200: '#DCDCDC', // UIボーダー
+          50: '#F8F7F4'   // 紙のテクスチャ背景
         },
         offwhite: '#F4F4F0',
         klein: '#002FA7'

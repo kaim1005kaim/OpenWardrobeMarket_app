@@ -1,18 +1,20 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import Feather from '@expo/vector-icons/Feather';
 import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
+import { BottomTabBar } from '@react-navigation/bottom-tabs';
+import { Pressable, Platform, StyleSheet, View } from 'react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
+// Minimal line icons for Floating Glass Dock
 function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
+  name: React.ComponentProps<typeof Feather>['name'];
   color: string;
 }) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  return <Feather size={22} {...props} />;
 }
 
 export default function TabLayout() {
@@ -20,34 +22,61 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      tabBar={(props) => (
+        <View style={styles.tabBarWrapper}>
+          <BottomTabBar {...props} />
+        </View>
+      )}
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: '#1a3d3d', // darkTeal
+        tabBarInactiveTintColor: '#9CA3AF', // グレー
         headerShown: false,
+        tabBarShowLabel: false, // ラベルを非表示
+        tabBarItemStyle: {
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingVertical: 0,
+          paddingTop: 12,
+        },
         tabBarStyle: {
-          backgroundColor: Colors[colorScheme ?? 'light'].background,
-          borderTopColor: '#EAEAEA',
-          borderTopWidth: 1,
+          position: 'relative',
+          height: 64,
+          backgroundColor: 'rgba(255, 255, 255, 0.8)', // すりガラス効果
+          borderRadius: 24,
+          borderTopWidth: 0,
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.4)',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.05,
+          shadowRadius: 12,
+          elevation: 8,
+          paddingBottom: 0,
+          paddingTop: 0,
+          ...(Platform.OS === 'ios' && {
+            backdropFilter: 'blur(20px)',
+          }),
         },
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'STUDIO',
-          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
+          tabBarIcon: ({ color }) => <TabBarIcon name="grid" color={color} />,
         }}
       />
       <Tabs.Screen
         name="showcase"
         options={{
           title: 'SHOWCASE',
-          tabBarIcon: ({ color }) => <TabBarIcon name="th" color={color} />,
+          tabBarIcon: ({ color }) => <TabBarIcon name="compass" color={color} />,
         }}
       />
       <Tabs.Screen
         name="create"
         options={{
           title: 'CREATE',
-          tabBarIcon: ({ color }) => <TabBarIcon name="plus-circle" color={color} />,
+          tabBarIcon: ({ color }) => <TabBarIcon name="plus" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -66,3 +95,13 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBarWrapper: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    bottom: 24,
+    alignSelf: 'center',
+  },
+});
