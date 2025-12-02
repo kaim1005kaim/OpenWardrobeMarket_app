@@ -6,6 +6,7 @@ React Native (Expo) mobile application for Open Wardrobe Market - an AI-powered 
 
 - **STUDIO**: Browse and view fashion designs created by the community
 - **FUSION**: Combine two garment images using AI to create unique fashion designs
+- **Similar Items**: AI-powered visual similarity search using CLIP embeddings
 - **Supabase Authentication**: Secure user authentication with email/password and Google OAuth
 - **Cloudflare R2 Integration**: Optimized image loading and caching
 - **Native Mobile Experience**: Smooth animations, haptics, and mobile-optimized UI
@@ -149,6 +150,51 @@ import { Image } from 'expo-image';
 4. Job ID is returned and user is notified
 5. User can check back to see generated designs
 
+### Similar Items (Visual Similarity Search)
+
+The app features AI-powered visual similarity search that recommends similar fashion items based on visual features and tags.
+
+**Architecture:**
+```
+[Mobile App] → [Next.js API] → [Cloud Run CLIP Server] → [Supabase pgvector]
+                                        ↓
+                              [Cloudflare R2 Storage]
+```
+
+**Implementation:**
+- **CLIP Embeddings**: Uses OpenAI CLIP (vit-b-32) to generate 512-dimensional image embeddings
+- **Vector Search**: pgvector extension in Supabase for cosine similarity search
+- **Hybrid Similarity**: Combines vector search (70%) + tag-based Jaccard similarity (30%)
+- **Fallback Mechanism**: Automatically falls back to tag-based search if vector search fails
+
+**Usage:**
+```typescript
+import { apiClient } from '@/lib/api-client';
+
+// Get similar items
+const similarItems = await apiClient.getSimilarItems(itemId, 6);
+```
+
+**Component:**
+```typescript
+import { SimilarItemsSection } from '@/components/mobile/SimilarItemsSection';
+
+<SimilarItemsSection itemId={currentItemId} />
+```
+
+**API Endpoints:**
+- `/api/vector-search` - Primary endpoint using CLIP embeddings
+- `/api/similar-items` - Fallback endpoint using tag-based similarity
+
+**CLIP Server Details:**
+- **Hosting**: Google Cloud Run (europe-west1)
+- **Model**: OpenAI CLIP vit-b-32
+- **Dimensions**: 512
+- **Processing**: CPU-optimized (2 cores, 4GB RAM)
+- **Cost**: ~$5-10/month for 10,000 requests
+
+For more details on the CLIP server implementation, see the [web project README](https://github.com/yourusername/OpenWardrobeMarket#-clip-server--vector-search).
+
 ## Design System
 
 ### Colors
@@ -194,8 +240,9 @@ npx expo start --dev-client
 
 ## Next Steps (Phase 2+)
 
+- [x] Add detailed item view
+- [x] Implement Similar Items feature with CLIP embeddings
 - [ ] Implement Archive screen
-- [ ] Add detailed item view
 - [ ] Implement Urula 3D visualization
 - [ ] Add Supabase Realtime for FUSION job updates
 - [ ] Implement user profile and settings
