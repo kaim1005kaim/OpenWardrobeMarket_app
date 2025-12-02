@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "owm",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -16,8 +16,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.openwardrobemarket.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select images for FUSION.",
+        "NSCameraUsageDescription": "This app needs access to your camera to take photos for FUSION.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -30,8 +34,9 @@
       },
       "package": "com.openwardrobemarket.app",
       "permissions": [
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -51,6 +56,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "68a57858-db47-426a-b703-b60d55ffd7e7"
+      }
     }
   }
 }

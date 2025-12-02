@@ -46,6 +46,14 @@ export interface TriptychUrls {
   back: string;
 }
 
+// v4.0 Quadtych: MAIN + 3-view Specs
+export interface QuadtychUrls {
+  main: string;  // Hero shot (dynamic pose, editorial background)
+  front: string; // Front spec (white background, A-pose)
+  side: string;  // Side spec (90° profile, white background)
+  back: string;  // Back spec (rear view, white background)
+}
+
 export interface FusionState {
   stage: FusionStage;
   imageA: FusionImage | null;
@@ -53,7 +61,8 @@ export interface FusionState {
   fusionSpec: FusionSpec | null;
   generatedImageUrl: string | null;
   generationId: string | null;
-  triptychUrls: TriptychUrls | null; // v3.0: Triptych panel URLs
+  triptychUrls: TriptychUrls | null; // v3.0: Triptych panel URLs (deprecated)
+  quadtychUrls: QuadtychUrls | null; // v4.0: Quadtych panel URLs (MAIN + 3-view)
   error: string | null;
 }
 

@@ -26,7 +26,8 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+// Default to production API to avoid simulator connectivity issues when .env is missing
+const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://open-wardrobe-market.com';
 
 const posterTemplatesBase: PosterTemplate[] = [
   {

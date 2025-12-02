@@ -37,7 +37,7 @@ export function GeneratingView() {
   });
 
   return (
-    <View className="flex-1 items-center justify-center px-6">
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
       {/* Generating Icon */}
       <Animated.View
         style={{
@@ -52,24 +52,26 @@ export function GeneratingView() {
 
       {/* Status Text */}
       <Text
-        className="text-ink-900 text-center mb-3"
         style={{
           fontFamily: 'Trajan',
           fontSize: 28,
           letterSpacing: 4,
           fontWeight: '400',
+          color: '#1A1A1A',
+          textAlign: 'center',
+          marginBottom: 12,
         }}
       >
         GENERATING
       </Text>
 
-      <Text className="text-ink-600 text-center text-base leading-6 mb-12 max-w-xs">
-        Imagen 3.0がデザインを生成しています...{'\n'}
+      <Text style={{ color: '#777777', textAlign: 'center', fontSize: 16, lineHeight: 24, marginBottom: 48, maxWidth: 320 }}>
+        4面のデザインを生成しています...{'\n'}
         これには40〜60秒かかります
       </Text>
 
       {/* Progress Bar */}
-      <View className="w-full max-w-sm mb-8">
+      <View style={{ width: '100%', maxWidth: 384, marginBottom: 32 }}>
         <View
           style={styles.progressTrack}
         >
@@ -85,7 +87,7 @@ export function GeneratingView() {
       </View>
 
       {/* Generation Steps */}
-      <View className="w-full max-w-xs">
+      <View style={{ width: '100%', maxWidth: 320 }}>
         {[
           { icon: 'image', label: 'デザインコンセプトの構築' },
           { icon: 'adjust', label: '色とテクスチャの適用' },
@@ -94,8 +96,10 @@ export function GeneratingView() {
         ].map((step, index) => (
           <Animated.View
             key={index}
-            className="flex-row items-center py-3"
             style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 12,
               opacity: progressAnim.interpolate({
                 inputRange: [index * 0.25, (index + 1) * 0.25],
                 outputRange: [0.3, 1],
@@ -109,7 +113,7 @@ export function GeneratingView() {
               color="#5B7DB1"
               style={{ marginRight: 12, width: 20 }}
             />
-            <Text className="text-ink-600 text-sm flex-1">{step.label}</Text>
+            <Text style={{ color: '#777777', fontSize: 14, flex: 1 }}>{step.label}</Text>
             <Animated.View
               style={{
                 opacity: progressAnim.interpolate({
@@ -126,16 +130,16 @@ export function GeneratingView() {
       </View>
 
       {/* Info */}
-      <View className="mt-12 bg-ink-50 rounded-2xl p-4 w-full max-w-xs">
-        <View className="flex-row items-start">
+      <View style={{ marginTop: 48, backgroundColor: '#F5F5F3', borderRadius: 16, padding: 16, width: '100%', maxWidth: 320 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <FontAwesome
             name="info-circle"
             size={16}
             color="#777777"
             style={{ marginRight: 8, marginTop: 2 }}
           />
-          <Text className="text-ink-600 text-xs leading-5 flex-1">
-            生成後、自動的にSIDEとBACKビューも作成されます
+          <Text style={{ color: '#777777', fontSize: 12, lineHeight: 20, flex: 1 }}>
+            MAIN + FRONT/SIDE/BACKの4面を同時生成します
           </Text>
         </View>
       </View>

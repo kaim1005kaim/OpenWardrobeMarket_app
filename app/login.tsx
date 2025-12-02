@@ -15,6 +15,7 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import * as Linking from 'expo-linking';
 
 type PageMode = 'login' | 'signup';
 type AuthMode = 'password' | 'magic-link';
@@ -29,6 +30,7 @@ export default function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const redirectTo = Linking.createURL('/');
 
   // Redirect to tabs if user is already logged in
   useEffect(() => {
@@ -83,7 +85,7 @@ export default function LoginScreen() {
         email,
         password,
         options: {
-          emailRedirectTo: 'openwrdrb://auth/callback',
+          emailRedirectTo: redirectTo,
         },
       });
 
@@ -113,7 +115,7 @@ export default function LoginScreen() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: 'openwrdrb://auth/callback',
+          emailRedirectTo: redirectTo,
         },
       });
 
@@ -136,7 +138,7 @@ export default function LoginScreen() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'owm://',
+          redirectTo: redirectTo,
         },
       });
 
@@ -321,6 +323,7 @@ export default function LoginScreen() {
                 setAuthMode('password');
                 setPassword('');
                 setConfirmPassword('');
+                setIsLoading(false); // ensure inputs are enabled when switching mode
               }}
               disabled={isLoading}
             >

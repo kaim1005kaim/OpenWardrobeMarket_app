@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Image, Animated, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, ScrollView, Image, Animated, StyleSheet, TouchableOpacity, Dimensions, PanResponder } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { FusionSpec, TriptychUrls, QuadtychUrls } from '@/types/fusion';
 
@@ -34,6 +34,33 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
     : (hasTriptych && triptychUrls
       ? triptychUrls[activeSpecView]
       : imageUrl);
+
+  // Swipe gesture handler for FRONT/SIDE/BACK navigation
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => viewMode === 'spec',
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only activate if horizontal swipe
+        return viewMode === 'spec' && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (viewMode !== 'spec') return;
+
+        const SWIPE_THRESHOLD = 50;
+        const specViews: Array<'front' | 'side' | 'back'> = ['front', 'side', 'back'];
+        const currentIndex = specViews.indexOf(activeSpecView);
+
+        // Swipe left (next view)
+        if (gestureState.dx < -SWIPE_THRESHOLD && currentIndex < specViews.length - 1) {
+          setActiveSpecView(specViews[currentIndex + 1]);
+        }
+        // Swipe right (previous view)
+        else if (gestureState.dx > SWIPE_THRESHOLD && currentIndex > 0) {
+          setActiveSpecView(specViews[currentIndex - 1]);
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -73,130 +100,182 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingBottom: 24 }}
     >
-      <View style={{ paddingHorizontal: 24, paddingTop: 24 }}>
-        {/* v4.0: Quadtych View Mode Selector (MAIN vs SPEC MODE) */}
+      <View style={{ paddingHorizontal: 24, paddingTop: 8 }}>
+        {/* v4.0: Quadtych View Mode Selector (MAIN vs SPEC MODE) - Minimal icon buttons with labels */}
         {hasQuadtych && (
           <Animated.View
-            style={{ opacity: fadeAnim, marginBottom: 16 }}
+            style={{ opacity: fadeAnim, marginBottom: 16, alignItems: 'center' }}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24 }}>
-              <TouchableOpacity
-                onPress={() => setViewMode('main')}
-                activeOpacity={0.7}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 24,
-                  borderRadius: 12,
-                  backgroundColor: viewMode === 'main' ? '#1a3d3d' : 'transparent',
-                  borderWidth: 1,
-                  borderColor: viewMode === 'main' ? '#1a3d3d' : 'rgba(26, 61, 61, 0.3)',
-                }}
-              >
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
+              {/* MAIN / PORTRAIT button */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  onPress={() => setViewMode('main')}
+                  activeOpacity={0.7}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    backgroundColor: viewMode === 'main' ? '#1a3d3d' : 'transparent',
+                    borderWidth: 1.5,
+                    borderColor: viewMode === 'main' ? '#1a3d3d' : 'rgba(26, 61, 61, 0.3)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 6,
+                  }}
+                >
+                  <FontAwesome
+                    name="camera"
+                    size={20}
+                    color={viewMode === 'main' ? '#FAFAF7' : 'rgba(119, 119, 119, 0.8)'}
+                  />
+                </TouchableOpacity>
                 <Text
                   style={{
                     fontFamily: 'Trajan',
-                    fontSize: 12,
-                    letterSpacing: 2,
-                    color: viewMode === 'main' ? '#FAFAF7' : 'rgba(119, 119, 119, 0.8)',
+                    fontSize: 9,
+                    letterSpacing: 1,
+                    color: viewMode === 'main' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
                   }}
                 >
-                  MAIN
+                  PORTRAIT
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setViewMode('spec')}
-                activeOpacity={0.7}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 24,
-                  borderRadius: 12,
-                  backgroundColor: viewMode === 'spec' ? '#1a3d3d' : 'transparent',
-                  borderWidth: 1,
-                  borderColor: viewMode === 'spec' ? '#1a3d3d' : 'rgba(26, 61, 61, 0.3)',
-                }}
-              >
+              </View>
+
+              {/* SPEC MODE button */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity
+                  onPress={() => setViewMode('spec')}
+                  activeOpacity={0.7}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    backgroundColor: viewMode === 'spec' ? '#1a3d3d' : 'transparent',
+                    borderWidth: 1.5,
+                    borderColor: viewMode === 'spec' ? '#1a3d3d' : 'rgba(26, 61, 61, 0.3)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 6,
+                  }}
+                >
+                  <FontAwesome
+                    name="th-large"
+                    size={18}
+                    color={viewMode === 'spec' ? '#FAFAF7' : 'rgba(119, 119, 119, 0.8)'}
+                  />
+                </TouchableOpacity>
                 <Text
                   style={{
                     fontFamily: 'Trajan',
-                    fontSize: 12,
-                    letterSpacing: 2,
-                    color: viewMode === 'spec' ? '#FAFAF7' : 'rgba(119, 119, 119, 0.8)',
+                    fontSize: 9,
+                    letterSpacing: 1,
+                    color: viewMode === 'spec' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
                   }}
                 >
-                  SPEC MODE
+                  SPEC
                 </Text>
-              </TouchableOpacity>
+              </View>
             </View>
           </Animated.View>
         )}
 
-        {/* v4.0: Spec View Selector (FRONT/SIDE/BACK) - Only shown in SPEC MODE */}
-        {hasQuadtych && viewMode === 'spec' && (
+        {/* v4.0: Spec View Selector (FRONT/SIDE/BACK) or EDITORIAL label - Always reserve space */}
+        {hasQuadtych && (
           <Animated.View
-            style={{ opacity: fadeAnim, marginBottom: 24 }}
+            style={{
+              opacity: fadeAnim,
+              marginBottom: 24,
+              height: 36, // Fixed height to prevent layout shift
+            }}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>
-              <TouchableOpacity
-                onPress={() => setActiveSpecView('front')}
-                activeOpacity={0.7}
-                style={{
-                  paddingBottom: 8,
-                  borderBottomWidth: activeSpecView === 'front' ? 2 : 0,
-                  borderBottomColor: '#1a3d3d',
-                }}
-              >
-                <Text
+            {viewMode === 'spec' ? (
+              // SPEC MODE: Show interactive FRONT/SIDE/BACK tabs
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>
+                <TouchableOpacity
+                  onPress={() => setActiveSpecView('front')}
+                  activeOpacity={0.7}
                   style={{
-                    fontFamily: 'Trajan',
-                    fontSize: 12,
-                    letterSpacing: 2,
-                    color: activeSpecView === 'front' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                    paddingBottom: 8,
+                    borderBottomWidth: activeSpecView === 'front' ? 2 : 0,
+                    borderBottomColor: '#1a3d3d',
                   }}
                 >
-                  FRONT
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setActiveSpecView('side')}
-                activeOpacity={0.7}
-                style={{
-                  paddingBottom: 8,
-                  borderBottomWidth: activeSpecView === 'side' ? 2 : 0,
-                  borderBottomColor: '#1a3d3d',
-                }}
-              >
-                <Text
+                  <Text
+                    style={{
+                      fontFamily: 'Trajan',
+                      fontSize: 12,
+                      letterSpacing: 2,
+                      color: activeSpecView === 'front' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                    }}
+                  >
+                    FRONT
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setActiveSpecView('side')}
+                  activeOpacity={0.7}
                   style={{
-                    fontFamily: 'Trajan',
-                    fontSize: 12,
-                    letterSpacing: 2,
-                    color: activeSpecView === 'side' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                    paddingBottom: 8,
+                    borderBottomWidth: activeSpecView === 'side' ? 2 : 0,
+                    borderBottomColor: '#1a3d3d',
                   }}
                 >
-                  SIDE
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setActiveSpecView('back')}
-                activeOpacity={0.7}
-                style={{
-                  paddingBottom: 8,
-                  borderBottomWidth: activeSpecView === 'back' ? 2 : 0,
-                  borderBottomColor: '#1a3d3d',
-                }}
-              >
-                <Text
+                  <Text
+                    style={{
+                      fontFamily: 'Trajan',
+                      fontSize: 12,
+                      letterSpacing: 2,
+                      color: activeSpecView === 'side' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                    }}
+                  >
+                    SIDE
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setActiveSpecView('back')}
+                  activeOpacity={0.7}
                   style={{
-                    fontFamily: 'Trajan',
-                    fontSize: 12,
-                    letterSpacing: 2,
-                    color: activeSpecView === 'back' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                    paddingBottom: 8,
+                    borderBottomWidth: activeSpecView === 'back' ? 2 : 0,
+                    borderBottomColor: '#1a3d3d',
                   }}
                 >
-                  BACK
-                </Text>
-              </TouchableOpacity>
-            </View>
+                  <Text
+                    style={{
+                      fontFamily: 'Trajan',
+                      fontSize: 12,
+                      letterSpacing: 2,
+                      color: activeSpecView === 'back' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                    }}
+                  >
+                    BACK
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // MAIN MODE: Show EDITORIAL label
+              <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
+                <View
+                  style={{
+                    paddingBottom: 8,
+                    borderBottomWidth: 2,
+                    borderBottomColor: '#1a3d3d',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'Trajan',
+                      fontSize: 12,
+                      letterSpacing: 2,
+                      color: '#1a3d3d',
+                    }}
+                  >
+                    EDITORIAL
+                  </Text>
+                </View>
+              </View>
+            )}
           </Animated.View>
         )}
 
@@ -276,18 +355,15 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
             opacity: fadeAnim,
             transform: [{ scale: scaleAnim }],
             alignItems: 'center',
+            marginBottom: 32, // Increased gap between image and DESIGN SPECIFICATIONS
           }}
+          {...panResponder.panHandlers}
         >
           <View style={styles.imageContainer}>
             <Image
               source={{ uri: currentImageUrl }}
-              style={[
-                styles.generatedImage,
-                (imageAspectRatio || previousAspectRatio)
-                  ? { aspectRatio: imageAspectRatio || previousAspectRatio }
-                  : { height: 600 }
-              ]}
-              resizeMode="contain"
+              style={styles.generatedImage}
+              resizeMode="cover"
               onLoad={handleImageLoad}
             />
           </View>
@@ -296,10 +372,13 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
         {/* AI Design Note (v2.0: Display fusion_concept) - Paper Texture */}
         {fusionSpec?.fusion_concept && (
           <Animated.View
-            style={{
-              opacity: fadeAnim,
-              marginBottom: 24,
-            }}
+            style={[
+              styles.contentContainer,
+              {
+                opacity: fadeAnim,
+                marginBottom: 24,
+              }
+            ]}
           >
             <View style={{ borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#E5E5E5', backgroundColor: '#F8F7F4' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
@@ -350,10 +429,13 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
         {/* Dominant Trait Analysis */}
         {fusionSpec?.dominant_trait_analysis && (
           <Animated.View
-            style={{
-              opacity: fadeAnim,
-              marginBottom: 24,
-            }}
+            style={[
+              styles.contentContainer,
+              {
+                opacity: fadeAnim,
+                marginBottom: 24,
+              }
+            ]}
           >
             <View style={{ borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#E5E5E5', backgroundColor: '#F8F7F4' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
@@ -381,10 +463,13 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
         {/* Design Specifications */}
         {fusionSpec && (
           <Animated.View
-            style={{
-              opacity: fadeAnim,
-              marginBottom: 24,
-            }}
+            style={[
+              styles.contentContainer,
+              {
+                opacity: fadeAnim,
+                marginBottom: 24,
+              }
+            ]}
           >
             <View style={{ borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#E5E5E5', backgroundColor: '#F8F7F4' }}>
               <Text
@@ -467,7 +552,7 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
         )}
 
         {/* Action Buttons - Outline Style */}
-        <View style={{ gap: 16 }}>
+        <View style={[styles.contentContainer, { gap: 16 }]}>
           <TouchableOpacity
             style={{
               borderRadius: 16,
@@ -524,7 +609,8 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
 const styles = StyleSheet.create({
   imageContainer: {
     width: '90%',
-    maxWidth: 340,
+    maxWidth: 360,
+    height: 600,
     borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#F5F5F3',
@@ -539,5 +625,11 @@ const styles = StyleSheet.create({
   },
   generatedImage: {
     width: '100%',
+    height: '100%',
+  },
+  contentContainer: {
+    width: '90%',
+    maxWidth: 360,
+    alignSelf: 'center',
   },
 });

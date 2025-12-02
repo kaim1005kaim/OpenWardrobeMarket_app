@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -26,18 +27,92 @@ export default function ShowcaseScreen() {
 
   const fetchItems = async () => {
     try {
-      const response = await apiClient.get<{ images: any[] }>(
-        '/api/catalog'
-      );
-      const catalogItems = response.images || [];
-      setItems(catalogItems);
-      setFilteredItems(catalogItems);
+      // Fetch both catalog and published items in parallel
+      const [catalogResponse, showcaseResponse] = await Promise.all([
+        apiClient.get<{ images: any[] }>('/api/catalog')
+          .catch((error) => {
+            console.warn('[showcase] /api/catalog failed:', error);
+            return { images: [] };
+          }),
+        apiClient.get<{ success: boolean; items: any[]; total: number }>('/api/showcase?limit=100')
+          .catch((error) => {
+            console.warn('[showcase] /api/showcase failed:', error);
+            return { success: false, items: [], total: 0 };
+          })
+      ]);
+
+      const catalogItems = (catalogResponse.images || []).map((item: any) => ({
+        ...item,
+        isUserGenerated: false,
+      }));
+
+      // Map published items from showcase API
+      const publishedItems = (showcaseResponse.items || []).map((item: any) => ({
+        id: item.id,
+        src: item.original_url || item.poster_url || item.image_url,
+        title: item.title || 'Untitled Design',
+        tags: item.tags || [],
+        colors: item.colors || [],
+        price: item.price,
+        likes: item.likes || 0,
+        isUserGenerated: true,
+        createdAt: item.created_at,
+      }));
+
+      console.log('[showcase] Fetched items:', {
+        catalog: catalogItems.length,
+        published: publishedItems.length,
+      });
+
+      // Shuffle both arrays separately
+      const shuffledPublished = shuffleArray([...publishedItems]);
+      const shuffledCatalog = shuffleArray([...catalogItems]);
+
+      // Merge with published items taking priority (70% published, 30% catalog ratio)
+      const allItems = interleaveArrays(shuffledPublished, shuffledCatalog, 0.7);
+
+      console.log('[showcase] Total items after merge:', allItems.length);
+
+      setItems(allItems);
+      setFilteredItems(allItems);
     } catch (error) {
-      console.error('Failed to fetch items:', error);
+      console.error('[showcase] Failed to fetch items:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  // Fisher-Yates shuffle algorithm
+  const shuffleArray = <T,>(array: T[]): T[] => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
+  // Interleave two arrays with priority ratio
+  const interleaveArrays = <T,>(primary: T[], secondary: T[], primaryRatio: number): T[] => {
+    const result: T[] = [];
+    let primaryIndex = 0;
+    let secondaryIndex = 0;
+
+    while (primaryIndex < primary.length || secondaryIndex < secondary.length) {
+      // Add items from primary array based on ratio
+      const primaryCount = Math.random() < primaryRatio ? 2 : 1;
+      for (let i = 0; i < primaryCount && primaryIndex < primary.length; i++) {
+        result.push(primary[primaryIndex++]);
+      }
+
+      // Add one item from secondary array
+      if (secondaryIndex < secondary.length) {
+        result.push(secondary[secondaryIndex++]);
+      }
+    }
+
+    return result;
   };
 
   useEffect(() => {
@@ -73,13 +148,9 @@ export default function ShowcaseScreen() {
     setFilteredItems(items);
   };
 
-  if (loading) {
-    return <LoadingSpinner fullScreen message="Loading gallery..." />;
-  }
-
   return (
-    <View className="flex-1 bg-background">
-      <SafeAreaView className="flex-1" edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: '#F2F0E9' }}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <MobileHeader onMenuPress={() => setMenuVisible(true)} transparent darkText />
         <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />
         <SearchModal
@@ -89,64 +160,98 @@ export default function ShowcaseScreen() {
         />
 
         <ScrollView
-          className="flex-1"
+          style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
+          {/* Page Title */}
+          <View style={{ paddingHorizontal: 24, paddingTop: 32 }}>
+            <Text
+              style={{
+                color: '#1A1A1A',
+                textAlign: 'center',
+                fontFamily: 'Trajan',
+                fontSize: 40,
+                letterSpacing: 8,
+                fontWeight: '400',
+              }}
+            >
+              SHOWCASE
+            </Text>
+          </View>
+
           {/* Search Bar */}
-          <View className="px-6 pb-4" style={{ paddingTop: 32 }}>
+          <View style={{ paddingHorizontal: 24, paddingBottom: 16, paddingTop: 24 }}>
             <TouchableOpacity
-              className="flex-row items-center justify-center py-3 border-b border-ink-200"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingVertical: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: '#DCDCDC',
+              }}
               onPress={() => setSearchVisible(true)}
               activeOpacity={0.7}
             >
               <FontAwesome name="search" size={16} color="#777777" />
-              <Text className="text-ink-400 ml-2 text-sm uppercase tracking-wider">
+              <Text
+                style={{
+                  color: '#777777',
+                  marginLeft: 8,
+                  fontSize: 14,
+                  textTransform: 'uppercase',
+                  letterSpacing: 1.5,
+                }}
+              >
                 {searchQuery || 'SEARCH'}
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Masonry Grid with Overlapping Title */}
-          <View className="relative">
-            {/* SHOWCASE Title - Behind Grid */}
-            <View className="absolute top-8 left-0 right-0 items-center z-0" style={{ pointerEvents: 'none' }}>
-              <Text
-                className="text-ink-900"
-                style={{
-                  fontFamily: 'Trajan',
-                  fontSize: 56,
-                  letterSpacing: 6,
-                  fontWeight: '400',
-                }}
-              >
-                SHOWCASE
+          {/* Loading or Content */}
+          {loading ? (
+            <View style={{ alignItems: 'center', paddingVertical: 120 }}>
+              <ActivityIndicator size="large" color="#1a3d3d" />
+              <Text style={{ color: '#777777', marginTop: 16 }}>
+                Loading gallery...
               </Text>
             </View>
-
-            {/* Masonry Grid - Above Title */}
-            {filteredItems.length > 0 ? (
-              <View className="pb-24 z-10" style={{ paddingTop: 35 }}>
-                <MasonryGrid
-                  items={filteredItems}
-                  onItemPress={(item) => {
-                    console.log('Item pressed:', item.id);
-                  }}
-                />
-              </View>
-            ) : (
-              <View className="items-center justify-center py-20 px-6">
-                <FontAwesome name="search" size={48} color="#EAEAEA" />
-                <Text className="text-ink-400 text-center mt-4 text-base">
-                  {searchQuery
-                    ? `「${searchQuery}」に一致するデザインが見つかりませんでした`
-                    : 'まだデザインがありません'}
-                </Text>
-              </View>
-            )}
-          </View>
+          ) : filteredItems.length > 0 ? (
+            <View style={{ paddingBottom: 96, paddingTop: 16 }}>
+              <MasonryGrid
+                items={filteredItems}
+                onItemPress={(item) => {
+                  console.log('Item pressed:', item.id);
+                }}
+              />
+            </View>
+          ) : (
+            <View
+              style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingVertical: 80,
+                paddingHorizontal: 24,
+              }}
+            >
+              <FontAwesome name="search" size={48} color="#EAEAEA" />
+              <Text
+                style={{
+                  color: '#777777',
+                  textAlign: 'center',
+                  marginTop: 16,
+                  fontSize: 16,
+                }}
+              >
+                {searchQuery
+                  ? `「${searchQuery}」に一致するデザインが見つかりませんでした`
+                  : 'まだデザインがありません'}
+              </Text>
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>

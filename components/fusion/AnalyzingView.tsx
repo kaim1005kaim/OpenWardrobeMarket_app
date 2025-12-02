@@ -135,7 +135,7 @@ export function AnalyzingView({ imageA, imageB, fusionSpec }: AnalyzingViewProps
   });
 
   return (
-    <View className="flex-1 items-center justify-center px-6" style={{ position: 'relative' }}>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, position: 'relative' }}>
       {/* Floating Keywords (v2.0: Emotional interpretation visualization) */}
       {keywords.map((keyword, index) => (
         <Animated.View
@@ -155,7 +155,7 @@ export function AnalyzingView({ imageA, imageB, fusionSpec }: AnalyzingViewProps
       ))}
 
       {/* Image Previews */}
-      <View className="flex-row items-center justify-center mb-12">
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 48 }}>
         <View style={styles.imagePreview}>
           <Animated.Image
             source={{ uri: imageA }}
@@ -208,18 +208,20 @@ export function AnalyzingView({ imageA, imageB, fusionSpec }: AnalyzingViewProps
 
       {/* Status Text */}
       <Text
-        className="text-ink-900 text-center mb-3"
         style={{
           fontFamily: 'Trajan',
           fontSize: 24,
           letterSpacing: 4,
           fontWeight: '400',
+          color: '#1A1A1A',
+          textAlign: 'center',
+          marginBottom: 12,
         }}
       >
         ANALYZING
       </Text>
 
-      <Text className="text-ink-600 text-center text-base leading-6 max-w-xs">
+      <Text style={{ color: '#777777', textAlign: 'center', fontSize: 16, lineHeight: 24, maxWidth: 320 }}>
         AIが情緒的な解釈を実行中...{'\n'}
         デザインの本質と感情を抽出しています
       </Text>
@@ -227,22 +229,27 @@ export function AnalyzingView({ imageA, imageB, fusionSpec }: AnalyzingViewProps
       {/* Fusion Concept Preview (if available) */}
       {fusionSpec?.fusion_concept && (
         <Animated.View
-          className="mt-8 px-6 py-4 bg-darkTeal/10 rounded-2xl max-w-md"
           style={{
+            marginTop: 32,
+            paddingHorizontal: 24,
+            paddingVertical: 16,
+            backgroundColor: 'rgba(26, 61, 61, 0.1)',
+            borderRadius: 16,
+            maxWidth: 448,
             opacity: pulseAnim.interpolate({
               inputRange: [1, 1.2],
               outputRange: [0.85, 1],
             }),
           }}
         >
-          <Text className="text-darkTeal text-center text-sm italic leading-5">
+          <Text style={{ color: '#1a3d3d', textAlign: 'center', fontSize: 14, fontStyle: 'italic', lineHeight: 20 }}>
             "{fusionSpec.fusion_concept}"
           </Text>
         </Animated.View>
       )}
 
       {/* Progress Steps */}
-      <View className="mt-12 w-full max-w-xs">
+      <View style={{ marginTop: 48, width: '100%', maxWidth: 320 }}>
         {[
           '感情とムードの読み取り',
           'デザイン哲学の抽出',
@@ -251,8 +258,10 @@ export function AnalyzingView({ imageA, imageB, fusionSpec }: AnalyzingViewProps
         ].map((step, index) => (
           <Animated.View
             key={index}
-            className="flex-row items-center py-3"
             style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 12,
               opacity: pulseAnim.interpolate({
                 inputRange: [1, 1.2],
                 outputRange: [0.5 + index * 0.1, 1],
@@ -260,10 +269,16 @@ export function AnalyzingView({ imageA, imageB, fusionSpec }: AnalyzingViewProps
             }}
           >
             <View
-              className="w-2 h-2 rounded-full bg-darkTeal mr-3"
-              style={{ opacity: 0.6 + index * 0.1 }}
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: '#1a3d3d',
+                marginRight: 12,
+                opacity: 0.6 + index * 0.1,
+              }}
             />
-            <Text className="text-ink-600 text-sm flex-1">{step}</Text>
+            <Text style={{ color: '#777777', fontSize: 14, flex: 1 }}>{step}</Text>
           </Animated.View>
         ))}
       </View>

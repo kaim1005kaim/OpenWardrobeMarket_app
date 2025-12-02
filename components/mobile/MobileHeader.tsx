@@ -11,14 +11,23 @@ interface MobileHeaderProps {
 export function MobileHeader({ onMenuPress, transparent = false, darkText = false }: MobileHeaderProps) {
   return (
     <View
-      className={`flex-row items-center justify-center px-4 py-4 ${
-        transparent ? 'bg-transparent' : 'bg-darkTeal'
-      }`}
-      style={{ height: 60 }}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        height: 60,
+        backgroundColor: transparent ? 'transparent' : '#1a3d3d',
+      }}
     >
       <Text
-        className={darkText ? 'text-ink-900 tracking-widest' : 'text-white tracking-widest'}
-        style={{ fontFamily: 'Trajan', fontSize: 18, letterSpacing: 2 }}
+        style={{
+          color: darkText ? '#1A1A1A' : '#FFFFFF',
+          fontFamily: 'Trajan',
+          fontSize: 18,
+          letterSpacing: 2,
+        }}
       >
         OWM
       </Text>

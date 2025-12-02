@@ -1,19 +1,93 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { MobileHeader } from '@/components/mobile/MobileHeader';
 import { MenuOverlay } from '@/components/mobile/MenuOverlay';
+import { apiClient } from '@/lib/api-client';
+
+interface UserGeneration {
+  id: string;
+  user_id?: string;
+  image_url?: string;
+  src?: string; // user-gallery uses 'src' instead of 'image_url'
+  title: string;
+  is_public?: boolean;
+  is_published?: boolean;
+  status?: string;
+  type?: 'generated' | 'published' | 'saved';
+  created_at: string;
+  metadata?: any;
+}
 
 export default function ArchiveScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
   const [menuVisible, setMenuVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<'published' | 'drafts' | 'collections'>('published');
+  const [generations, setGenerations] = useState<UserGeneration[]>([]);
+  const [allGenerations, setAllGenerations] = useState<UserGeneration[]>([]); // 全データを保持
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      fetchGenerations();
+    }
+  }, [user, activeTab]);
+
+  const fetchGenerations = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+
+      // Fetch all types to get accurate counts
+      const response = await apiClient.get<{ success: boolean; images: UserGeneration[]; total: number }>(
+        `/api/user-gallery?user_id=${user.id}&type=all`
+      );
+
+      console.log('[archive] Fetched all items:', response.images?.length || 0);
+
+      // Normalize the data format (user-gallery uses 'src', we use 'image_url')
+      const normalized = (response.images || []).map((item) => ({
+        ...item,
+        image_url: item.src || item.image_url || '',
+        is_public: item.is_published || item.type === 'published',
+      }));
+
+      // Store all generations for count
+      setAllGenerations(normalized);
+
+      // Filter for current tab
+      let filtered = normalized;
+      if (activeTab === 'published') {
+        filtered = normalized.filter((g) => g.type === 'published');
+      } else if (activeTab === 'drafts') {
+        filtered = normalized.filter((g) => g.type === 'generated');
+      } else if (activeTab === 'collections') {
+        filtered = normalized.filter((g) => g.type === 'saved');
+      }
+
+      console.log('[archive] Filtered for', activeTab, ':', filtered.length, 'items');
+      setGenerations(filtered);
+    } catch (error) {
+      console.error('[archive] Failed to fetch generations:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchGenerations();
+  };
 
   return (
-    <View className="flex-1 bg-background">
-      <SafeAreaView className="flex-1" edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: '#F2F0E9' }}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <MobileHeader
           onMenuPress={() => setMenuVisible(true)}
           transparent
@@ -24,14 +98,19 @@ export default function ArchiveScreen() {
           onClose={() => setMenuVisible(false)}
         />
 
-        <ScrollView>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 120 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
           {/* Page Title */}
-          <View className="px-6 pt-8">
+          <View style={{ paddingHorizontal: 24, paddingTop: 32 }}>
             <Text
-              className="text-ink-900 text-center"
               style={{
+                color: '#1A1A1A',
+                textAlign: 'center',
                 fontFamily: 'Trajan',
-                fontSize: 48,
+                fontSize: 40,
                 letterSpacing: 8,
                 fontWeight: '400',
               }}
@@ -40,81 +119,207 @@ export default function ArchiveScreen() {
             </Text>
           </View>
 
-          <View className="px-6 pt-6 pb-8">
+          <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 32 }}>
         {user ? (
-          <View>
+          <View style={{ alignItems: 'center' }}>
             {/* Avatar Placeholder */}
-            <View className="w-24 h-24 bg-klein rounded-full items-center justify-center mb-4">
-              <Text className="text-white text-2xl font-bold">
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                backgroundColor: '#002FA7',
+                borderRadius: 36,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16,
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 'bold' }}>
                 {user.email?.charAt(0).toUpperCase()}
               </Text>
             </View>
 
-            <Text className="text-ink-900 font-bold text-xl mb-2">
+            <Text style={{ color: '#1A1A1A', fontWeight: 'bold', fontSize: 18, marginBottom: 8, textAlign: 'center' }}>
               {user.email}
             </Text>
-            <View className="flex-row items-center mb-6">
-              <Text className="text-accent text-sm mr-2">★★★★☆</Text>
-              <View className="bg-ink-900 px-3 py-1 rounded-full">
-                <Text className="text-offwhite text-xs font-semibold">SUBSCRIBED</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 32 }}>
+              <Text style={{ color: '#FF7A1A', fontSize: 14, marginRight: 8 }}>★★★★☆</Text>
+              <View
+                style={{
+                  backgroundColor: '#1A1A1A',
+                  paddingHorizontal: 12,
+                  paddingVertical: 4,
+                  borderRadius: 9999,
+                }}
+              >
+                <Text style={{ color: '#F4F4F0', fontSize: 12, fontWeight: '600' }}>
+                  SUBSCRIBED
+                </Text>
               </View>
             </View>
 
             {/* Tabs */}
-            <View className="flex-row border-b border-ink-200 mb-6">
-              <TouchableOpacity className="px-4 py-3 border-b-2 border-ink-900">
-                <Text className="text-ink-900 font-semibold">DESIGN</Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                borderBottomWidth: 1,
+                borderBottomColor: '#DCDCDC',
+                marginBottom: 24,
+                width: '100%',
+                justifyContent: 'center',
+              }}
+            >
+              <TouchableOpacity
+                style={{
+                  paddingHorizontal: 24,
+                  paddingVertical: 12,
+                  borderBottomWidth: 2,
+                  borderBottomColor: '#1A1A1A',
+                }}
+              >
+                <Text style={{ color: '#1A1A1A', fontWeight: '600' }}>DESIGN</Text>
               </TouchableOpacity>
-              <TouchableOpacity className="px-4 py-3">
-                <Text className="text-ink-400 font-semibold">SETTING</Text>
+              <TouchableOpacity style={{ paddingHorizontal: 24, paddingVertical: 12 }}>
+                <Text style={{ color: '#777777', fontWeight: '600' }}>SETTING</Text>
               </TouchableOpacity>
             </View>
 
             {/* Sub Tabs */}
-            <View className="flex-row mb-6">
-              <TouchableOpacity className="px-3 py-2 bg-ink-900 rounded-lg mr-2">
-                <Text className="text-offwhite text-sm font-medium">Publish</Text>
+            <View style={{ flexDirection: 'row', marginBottom: 24, justifyContent: 'center', gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => setActiveTab('published')}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  backgroundColor: activeTab === 'published' ? '#1A1A1A' : '#FFFFFF',
+                  borderRadius: 8,
+                }}
+              >
+                <Text style={{ color: activeTab === 'published' ? '#F4F4F0' : '#3A3A3A', fontSize: 14, fontWeight: '500' }}>
+                  Publish ({allGenerations.filter((g) => g.type === 'published').length})
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 bg-white rounded-lg mr-2">
-                <Text className="text-ink-700 text-sm font-medium">Drafts</Text>
+              <TouchableOpacity
+                onPress={() => setActiveTab('drafts')}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  backgroundColor: activeTab === 'drafts' ? '#1A1A1A' : '#FFFFFF',
+                  borderRadius: 8,
+                }}
+              >
+                <Text style={{ color: activeTab === 'drafts' ? '#F4F4F0' : '#3A3A3A', fontSize: 14, fontWeight: '500' }}>
+                  Drafts ({allGenerations.filter((g) => g.type === 'generated').length})
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity className="px-3 py-2 bg-white rounded-lg">
-                <Text className="text-ink-700 text-sm font-medium">Collections</Text>
+              <TouchableOpacity
+                onPress={() => setActiveTab('collections')}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  backgroundColor: activeTab === 'collections' ? '#1A1A1A' : '#FFFFFF',
+                  borderRadius: 8,
+                }}
+              >
+                <Text style={{ color: activeTab === 'collections' ? '#F4F4F0' : '#3A3A3A', fontSize: 14, fontWeight: '500' }}>
+                  Collections ({allGenerations.filter((g) => g.type === 'saved').length})
+                </Text>
               </TouchableOpacity>
             </View>
 
-            {/* Empty State */}
-            <View className="items-center py-20">
-              <Text className="text-ink-400 text-center">
-                No published designs yet.
-              </Text>
-            </View>
+            {/* Content */}
+            {loading ? (
+              <View style={{ alignItems: 'center', paddingVertical: 60, width: '100%' }}>
+                <ActivityIndicator size="large" color="#1a3d3d" />
+              </View>
+            ) : generations.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 60, width: '100%' }}>
+                <Text style={{ color: '#777777', textAlign: 'center' }}>
+                  {activeTab === 'published' && 'No published designs yet.'}
+                  {activeTab === 'drafts' && 'No drafts yet.'}
+                  {activeTab === 'collections' && 'No collections yet.'}
+                </Text>
+              </View>
+            ) : (
+              <View style={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {generations.map((gen) => (
+                  <TouchableOpacity
+                    key={gen.id}
+                    onPress={() => {
+                      // TODO: Navigate to detail screen
+                      console.log('Open design:', gen.id, 'URL:', gen.image_url);
+                    }}
+                    activeOpacity={0.8}
+                    style={{ width: '31.5%', aspectRatio: 1, borderRadius: 8, overflow: 'hidden', backgroundColor: '#E5E5E5' }}
+                  >
+                    <Image
+                      source={{ uri: gen.image_url }}
+                      style={{ width: '100%', height: '100%' }}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* Sign Out Button */}
             <TouchableOpacity
-              className="mt-8 bg-ink-200 rounded-xl py-4 items-center"
+              style={{
+                marginTop: 16,
+                backgroundColor: '#DCDCDC',
+                borderRadius: 12,
+                paddingVertical: 16,
+                paddingHorizontal: 48,
+                alignItems: 'center',
+              }}
               onPress={signOut}
               activeOpacity={0.8}
             >
-              <Text className="text-ink-700 font-semibold">Sign Out</Text>
+              <Text style={{ color: '#3A3A3A', fontWeight: '600' }}>Sign Out</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View className="px-6 items-center py-20">
-            <Text className="text-ink-700 text-center text-lg mb-4">
+          <View style={{ paddingHorizontal: 24, alignItems: 'center', paddingVertical: 80 }}>
+            <Text
+              style={{
+                color: '#3A3A3A',
+                textAlign: 'center',
+                fontSize: 18,
+                marginBottom: 16,
+              }}
+            >
               サインインしてアーカイブにアクセス
             </Text>
-            <Text className="text-ink-400 text-center mb-8">
+            <Text
+              style={{
+                color: '#777777',
+                textAlign: 'center',
+                marginBottom: 32,
+              }}
+            >
               作成したデザインを保存・管理できます
             </Text>
 
             {/* Login Button */}
             <TouchableOpacity
-              className="bg-darkTeal rounded-xl py-4 px-8"
+              style={{
+                backgroundColor: '#1a3d3d',
+                borderRadius: 12,
+                paddingVertical: 16,
+                paddingHorizontal: 32,
+              }}
               onPress={() => router.push('/login')}
               activeOpacity={0.8}
             >
-              <Text className="text-offwhite font-bold text-base tracking-widest" style={{ fontFamily: 'System' }}>
+              <Text
+                style={{
+                  color: '#F4F4F0',
+                  fontWeight: 'bold',
+                  fontSize: 16,
+                  letterSpacing: 1.5,
+                  fontFamily: 'System',
+                }}
+              >
                 LOGIN
               </Text>
             </TouchableOpacity>

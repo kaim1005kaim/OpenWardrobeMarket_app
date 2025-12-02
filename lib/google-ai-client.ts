@@ -44,7 +44,8 @@ function fusionSpecToPrompt(spec: FusionSpec): string {
  * Bypasses Vercel backend to avoid SSL/TLS issues
  */
 export async function generateImageWithGoogleAI(
-  fusionSpec: FusionSpec
+  fusionSpec: FusionSpec,
+  userId: string
 ): Promise<{
   imageUrl: string;
   key: string;
@@ -53,6 +54,21 @@ export async function generateImageWithGoogleAI(
   try {
     console.log('[google-ai-client] Starting image generation...');
     console.log('[google-ai-client] FusionSpec:', JSON.stringify(fusionSpec, null, 2));
+
+    if (!userId) {
+      throw new Error('ログインが必要です');
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const activeUserId = session?.user?.id;
+
+    if (!activeUserId) {
+      throw new Error('ログインセッションが無効です');
+    }
+
+    if (activeUserId !== userId) {
+      throw new Error('セッションが期限切れです。再度ログインしてください');
+    }
 
     // Convert FusionSpec to prompt
     const prompt = fusionSpecToPrompt(fusionSpec);
@@ -111,13 +127,14 @@ export async function generateImageWithGoogleAI(
     // Upload to R2
     const imageUrl = await uploadGeneratedImageToR2(
       inline.data,
-      inline.mimeType || 'image/png'
+      inline.mimeType || 'image/png',
+      activeUserId
     );
 
     console.log('[google-ai-client] Uploaded to R2:', imageUrl);
 
     // Save to Supabase
-    const assetId = await saveToSupabase(imageUrl, fusionSpec);
+    const assetId = await saveToSupabase(imageUrl, fusionSpec, activeUserId);
 
     console.log('[google-ai-client] Saved to Supabase:', assetId);
 
@@ -139,14 +156,15 @@ export async function generateImageWithGoogleAI(
  */
 async function uploadGeneratedImageToR2(
   base64Data: string,
-  mimeType: string
+  mimeType: string,
+  userId: string
 ): Promise<string> {
   try {
     console.log('[google-ai-client] Uploading to R2...');
 
-    // Get current user (or use anonymous)
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id || 'anonymous';
+    if (!userId) {
+      throw new Error('ユーザーIDが必要です');
+    }
 
     // Determine file extension
     const ext = mimeType.includes('webp') ? 'webp' : 'jpg';
@@ -263,14 +281,26 @@ async function uploadGeneratedImageToR2(
  */
 async function saveToSupabase(
   imageUrl: string,
-  fusionSpec: FusionSpec
+  fusionSpec: FusionSpec,
+  userId: string
 ): Promise<string> {
   try {
     console.log('[google-ai-client] Saving to Supabase...');
 
-    // Get current user (or use anonymous)
+    if (!userId) {
+      throw new Error('ユーザーIDが必要です');
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id || 'anonymous';
+    const sessionUserId = session?.user?.id;
+
+    if (!sessionUserId) {
+      throw new Error('ログインセッションが無効です');
+    }
+
+    if (sessionUserId !== userId) {
+      throw new Error('セッションが期限切れです。再度ログインしてください');
+    }
 
     const key = extractKeyFromUrl(imageUrl);
 

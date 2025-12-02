@@ -4,7 +4,8 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import { generateImageWithGoogleAI } from './google-ai-client';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+// Default to production API if env is not provided to avoid simulator "Could not connect" errors
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://open-wardrobe-market.com';
 
 // Maximum base64 size to avoid PAYLOAD_TOO_LARGE (roughly 1.5MB after base64 encoding)
 const MAX_BASE64_SIZE = 1_000_000;
@@ -20,7 +21,7 @@ export interface AnalyzeFusionResponse {
 
 export interface GenerateDesignRequest {
   fusionSpec: FusionSpec;
-  userId?: string;
+  userId: string;
 }
 
 export interface GenerateDesignResponse {
@@ -282,20 +283,24 @@ function fusionSpecToPrompt(spec: FusionSpec): string {
 
 /**
  * Generate design using Nano Banana Pro (Gemini 3 Pro Image Preview) based on FusionSpec
- * v2.2: Hybrid mode - Direct API for production, Vercel for development
+ * v4.0: Quadtych mode - MAIN + 3-view (front/side/back)
  */
 export async function generateDesign(
   fusionSpec: FusionSpec,
-  userId?: string
-): Promise<{ generationId: string; imageUrl: string; triptychUrls?: any }> {
+  userId: string
+): Promise<{ generationId: string; imageUrl: string; triptychUrls?: any; quadtychUrls?: any }> {
   const mode = process.env.EXPO_PUBLIC_FUSION_MODE || 'vercel';
   console.log(`[generateDesign] FUSION Mode: ${mode}`);
+
+  if (!userId) {
+    throw new Error('ログインが必要です');
+  }
 
   try {
     if (mode === 'direct') {
       // Direct Google AI API (for production/real device)
       console.log('[generateDesign] Using direct Google AI API...');
-      const { imageUrl, assetId } = await generateImageWithGoogleAI(fusionSpec);
+      const { imageUrl, assetId } = await generateImageWithGoogleAI(fusionSpec, userId);
 
       return {
         generationId: assetId,
@@ -321,14 +326,18 @@ export async function generateDesign(
 
 /**
  * Generate via Vercel backend (for development/simulator)
- * v3.0: Enable triptych generation for single-shot consistency
+ * v4.0: Enable quadtych generation for MAIN + 3-view consistency
  */
 async function generateViaVercel(
   fusionSpec: FusionSpec,
-  userId?: string
-): Promise<{ generationId: string; imageUrl: string; triptychUrls?: any }> {
-  console.log('[generateViaVercel] Step 1: Generate triptych image via Vercel...');
+  userId: string
+): Promise<{ generationId: string; imageUrl: string; triptychUrls?: any; quadtychUrls?: any }> {
+  console.log('[generateViaVercel] Step 1: Generate quadtych image via Vercel...');
   console.log('[generateViaVercel] fusionSpec:', JSON.stringify(fusionSpec, null, 2));
+
+  if (!userId) {
+    throw new Error('ユーザー情報が見つかりません。再度ログインしてください');
+  }
 
   // Build request payload
   const prompt = fusionSpecToPrompt(fusionSpec);
@@ -338,7 +347,8 @@ async function generateViaVercel(
 
   const requestPayload = {
     prompt,
-    enableTriptych: true, // Enable triptych generation
+    enableQuadtych: true, // v4.0: Enable quadtych generation (MAIN + 3-view)
+    enableTriptych: false, // Deprecated
     fusionConcept: fusionSpec.fusion_concept,
     dna: fusionSpec,
     userId,
@@ -348,11 +358,12 @@ async function generateViaVercel(
   console.log('[generateViaVercel] Request payload.prompt exists:', !!requestPayload.prompt);
   console.log('[generateViaVercel] Request payload.dna exists:', !!requestPayload.dna);
 
-  // Step 1: Generate triptych image (returns base64 for front/side/back)
+  // Step 1: Generate quadtych image (returns base64 for main/front/side/back)
   const response = await apiClient.post<{
     success: boolean;
+    quadtych?: boolean;
     triptych?: boolean;
-    imageData?: string | { front: string; side: string; back: string };
+    imageData?: string | { main: string; front: string; side: string; back: string } | { front: string; side: string; back: string };
     mimeType: string;
     metadata: any;
   }>('/api/nano/generate', requestPayload);
@@ -361,9 +372,79 @@ async function generateViaVercel(
     throw new Error('Failed to generate image: No image data received');
   }
 
-  // Check if triptych response
+  // v4.0: Debug response structure
+  console.log('[generateViaVercel] Response keys:', Object.keys(response));
+  console.log('[generateViaVercel] response.quadtych:', response.quadtych);
+  console.log('[generateViaVercel] response.triptych:', response.triptych);
+  console.log('[generateViaVercel] imageData type:', typeof response.imageData);
+  if (typeof response.imageData === 'object') {
+    console.log('[generateViaVercel] imageData keys:', Object.keys(response.imageData as object));
+  }
+
+  // Check if quadtych response (v4.0)
+  const isQuadtych = response.quadtych && typeof response.imageData === 'object' && 'main' in response.imageData;
+  console.log('[generateViaVercel] Quadtych mode:', isQuadtych);
+
+  if (isQuadtych) {
+    // Handle quadtych response (main/front/side/back panels)
+    const quadtychData = response.imageData as { main: string; front: string; side: string; back: string };
+    console.log('[generateViaVercel] Step 2: Upload quadtych panels to R2...');
+    console.log('[generateViaVercel] Quadtych data keys:', Object.keys(quadtychData));
+    console.log('[generateViaVercel] Main data exists:', !!quadtychData.main, 'length:', quadtychData.main?.length);
+    console.log('[generateViaVercel] Front data exists:', !!quadtychData.front, 'length:', quadtychData.front?.length);
+    console.log('[generateViaVercel] Side data exists:', !!quadtychData.side, 'length:', quadtychData.side?.length);
+    console.log('[generateViaVercel] Back data exists:', !!quadtychData.back, 'length:', quadtychData.back?.length);
+
+    // Validate quadtych data
+    if (!quadtychData.main || !quadtychData.front || !quadtychData.side || !quadtychData.back) {
+      throw new Error(`Missing quadtych panel data: main=${!!quadtychData.main}, front=${!!quadtychData.front}, side=${!!quadtychData.side}, back=${!!quadtychData.back}`);
+    }
+
+    // Upload all 4 panels in parallel
+    const [mainUrl, frontUrl, sideUrl, backUrl] = await Promise.all([
+      uploadPanelToR2(quadtychData.main, 'main', userId, response.mimeType),
+      uploadPanelToR2(quadtychData.front, 'front', userId, response.mimeType),
+      uploadPanelToR2(quadtychData.side, 'side', userId, response.mimeType),
+      uploadPanelToR2(quadtychData.back, 'back', userId, response.mimeType),
+    ]);
+
+    console.log('[generateViaVercel] Quadtych panels uploaded:', { mainUrl, frontUrl, sideUrl, backUrl });
+
+    // Step 3: Save to database
+    const saveResponse = await apiClient.post<{
+      generationId: string;
+      imageUrl: string;
+    }>('/api/save-generation', {
+      imageUrl: mainUrl, // Use MAIN as primary image
+      imageKey: extractKeyFromUrl(mainUrl),
+      metadata: {
+        ...response.metadata,
+        quadtych: true,
+        mainUrl,
+        frontUrl,
+        sideUrl,
+        backUrl,
+      },
+      userId,
+    });
+
+    console.log('[generateViaVercel] ✅ Quadtych generation complete');
+
+    return {
+      generationId: saveResponse.generationId,
+      imageUrl: mainUrl, // Primary view is MAIN
+      quadtychUrls: {
+        main: mainUrl,
+        front: frontUrl,
+        side: sideUrl,
+        back: backUrl,
+      },
+    };
+  }
+
+  // Check if triptych response (deprecated, fallback)
   const isTriptych = response.triptych && typeof response.imageData === 'object';
-  console.log('[generateViaVercel] Triptych mode:', isTriptych);
+  console.log('[generateViaVercel] Triptych mode (deprecated):', isTriptych);
 
   if (isTriptych) {
     // Handle triptych response (front/side/back panels)
@@ -435,7 +516,7 @@ async function generateViaVercel(
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const timestamp = Date.now();
   const randomStr = Math.random().toString(36).substring(7);
-  const key = `generated/${userId || 'anonymous'}/${yyyy}/${mm}/${timestamp}-${randomStr}.${ext}`;
+  const key = `generated/${userId}/${yyyy}/${mm}/${timestamp}-${randomStr}.${ext}`;
 
   const presignUrl = `${API_BASE_URL}/api/r2-presign?key=${encodeURIComponent(key)}&contentType=${encodeURIComponent(response.mimeType)}`;
   const presignResponse = await fetch(presignUrl);
@@ -540,15 +621,19 @@ async function generateViaVercel(
 }
 
 /**
- * Upload a single triptych panel to R2
+ * Upload a single panel to R2 (quadtych or triptych)
  */
 async function uploadPanelToR2(
   base64Data: string,
-  panelType: 'front' | 'side' | 'back',
-  userId?: string,
+  panelType: 'main' | 'front' | 'side' | 'back',
+  userId: string,
   mimeType: string = 'image/jpeg'
 ): Promise<string> {
   console.log(`[uploadPanelToR2] Uploading ${panelType} panel...`);
+
+  if (!userId) {
+    throw new Error(`${panelType}パネルのアップロードにユーザーIDが必要です`);
+  }
 
   // Write base64 to temp file
   const tempUri = FileSystem.cacheDirectory + `${panelType}_${Date.now()}.jpg`;
@@ -562,7 +647,7 @@ async function uploadPanelToR2(
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const timestamp = Date.now();
   const randomStr = Math.random().toString(36).substring(7);
-  const key = `fusion/${userId || 'anonymous'}/${yyyy}/${mm}/${timestamp}-${panelType}-${randomStr}.jpg`;
+  const key = `fusion/${userId}/${yyyy}/${mm}/${timestamp}-${panelType}-${randomStr}.jpg`;
 
   // Get presigned URL
   const presignUrl = `${API_BASE_URL}/api/r2-presign?key=${encodeURIComponent(key)}&contentType=${encodeURIComponent(mimeType)}`;
@@ -616,14 +701,18 @@ function extractKeyFromUrl(url: string): string {
 }
 
 /**
- * Upload image to R2 via /api/upload-to-r2 endpoint (server-side upload with anonymous support)
+ * Upload image to R2 via /api/upload-to-r2 endpoint (server-side upload)
  */
 export async function uploadImageToR2(
   imageUri: string,
-  userId?: string
+  userId: string
 ): Promise<string> {
   try {
     console.log('[uploadImageToR2] Starting presigned upload for:', imageUri);
+
+    if (!userId) {
+      throw new Error('ログインが必要です');
+    }
 
     // Determine content type
     const filename = imageUri.split('/').pop() || 'image.jpg';
@@ -637,7 +726,7 @@ export async function uploadImageToR2(
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 10);
-    const key = `fusion/${userId || 'anonymous'}/${yyyy}/${mm}/${timestamp}-${randomStr}.${extension}`;
+    const key = `fusion/${userId}/${yyyy}/${mm}/${timestamp}-${randomStr}.${extension}`;
 
     const presignUrl = `${API_BASE_URL}/api/r2-presign?key=${encodeURIComponent(
       key

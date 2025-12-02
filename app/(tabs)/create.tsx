@@ -31,8 +31,8 @@ export default function CreateScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <SafeAreaView className="flex-1" edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: '#F2F0E9' }}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <MobileHeader
           onMenuPress={() => setMenuVisible(true)}
           transparent
@@ -49,17 +49,18 @@ export default function CreateScreen() {
         />
 
         <ScrollView
-          className="flex-1"
+          style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
           {/* Page Title */}
-          <View className="px-6 pt-8">
+          <View style={{ paddingHorizontal: 24, paddingTop: 32 }}>
             <Text
-              className="text-ink-900 text-center"
               style={{
+                color: '#1A1A1A',
+                textAlign: 'center',
                 fontFamily: 'Trajan',
-                fontSize: 48,
+                fontSize: 40,
                 letterSpacing: 8,
                 fontWeight: '400',
               }}
@@ -69,12 +70,19 @@ export default function CreateScreen() {
           </View>
 
           {/* Urula Hero Section */}
-          <View className="items-center py-12">
+          <View style={{ alignItems: 'center', paddingVertical: 48 }}>
             <UrulaHero />
 
             <Text
-              className="text-ink-700 text-center mt-8 px-6 text-base leading-6"
-              style={{ maxWidth: 320 }}
+              style={{
+                color: '#3A3A3A',
+                textAlign: 'center',
+                marginTop: 32,
+                paddingHorizontal: 24,
+                fontSize: 16,
+                lineHeight: 24,
+                maxWidth: 320,
+              }}
             >
               あなたの創造性を解き放つ{'\n'}
               Urulaと一緒にデザインを生み出そう
@@ -82,17 +90,27 @@ export default function CreateScreen() {
           </View>
 
           {/* CTA Buttons */}
-          <View className="px-6 pb-12">
+          <View style={{ paddingHorizontal: 24, paddingBottom: 48 }}>
             {/* Primary CTA */}
             <TouchableOpacity
-              className="bg-darkTeal rounded-2xl py-5 items-center mb-4"
+              style={{
+                backgroundColor: '#1a3d3d',
+                borderRadius: 16,
+                paddingVertical: 20,
+                alignItems: 'center',
+                marginBottom: 16,
+                ...styles.primaryButton,
+              }}
               activeOpacity={0.8}
               onPress={handleStartDesigning}
-              style={styles.primaryButton}
             >
               <Text
-                className="text-offwhite tracking-wider text-lg"
-                style={{ fontFamily: 'Trajan', letterSpacing: 2 }}
+                style={{
+                  color: '#F4F4F0',
+                  letterSpacing: 2,
+                  fontSize: 18,
+                  fontFamily: 'Trajan',
+                }}
               >
                 START DESIGNING
               </Text>
@@ -100,13 +118,17 @@ export default function CreateScreen() {
 
             {/* Secondary Link */}
             <TouchableOpacity
-              className="py-4 items-center"
+              style={{ paddingVertical: 16, alignItems: 'center' }}
               activeOpacity={0.7}
               onPress={() => setModePickerVisible(true)}
             >
               <Text
-                className="text-ink-600 text-sm tracking-wider underline"
-                style={{ letterSpacing: 1 }}
+                style={{
+                  color: '#5A5A5A',
+                  fontSize: 14,
+                  letterSpacing: 1,
+                  textDecorationLine: 'underline',
+                }}
               >
                 CHOOSE A METHOD
               </Text>
@@ -114,28 +136,33 @@ export default function CreateScreen() {
           </View>
 
           {/* Info Section */}
-          <View className="px-6 pb-16">
-            <View className="bg-ink-50 rounded-2xl p-6">
+          <View style={{ paddingHorizontal: 24, paddingBottom: 64 }}>
+            <View style={{ backgroundColor: '#F8F7F4', borderRadius: 16, padding: 24 }}>
               <Text
-                className="text-ink-900 text-sm mb-3 tracking-wider"
-                style={{ fontFamily: 'Trajan', letterSpacing: 1 }}
+                style={{
+                  color: '#1A1A1A',
+                  fontSize: 14,
+                  marginBottom: 12,
+                  letterSpacing: 1,
+                  fontFamily: 'Trajan',
+                }}
               >
                 AVAILABLE MODES
               </Text>
-              <View className="space-y-3">
+              <View style={{ gap: 12 }}>
                 <View>
-                  <Text className="text-ink-900 font-semibold mb-1">
+                  <Text style={{ color: '#1A1A1A', fontWeight: '600', marginBottom: 4 }}>
                     FUSION
                   </Text>
-                  <Text className="text-ink-600 text-sm leading-5">
+                  <Text style={{ color: '#5A5A5A', fontSize: 14, lineHeight: 20 }}>
                     2つの画像を融合させて新しいデザインを生成
                   </Text>
                 </View>
                 <View>
-                  <Text className="text-ink-900 font-semibold mb-1">
+                  <Text style={{ color: '#1A1A1A', fontWeight: '600', marginBottom: 4 }}>
                     COMPOSER
                   </Text>
-                  <Text className="text-ink-600 text-sm leading-5">
+                  <Text style={{ color: '#5A5A5A', fontSize: 14, lineHeight: 20 }}>
                     6つの質問からあなただけのデザインを作成
                   </Text>
                 </View>

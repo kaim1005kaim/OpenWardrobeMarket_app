@@ -39,15 +39,16 @@ export function ImagePicker({
         return;
       }
 
-      // Launch image picker with lower quality for smaller file size
+      // Launch image picker with optimized quality for faster loading
       const result = await ImagePickerLib.launchImageLibraryAsync({
         mediaTypes: ImagePickerLib.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [3, 4],
-        quality: 0.5, // Reduced to 0.5 to prevent PAYLOAD_TOO_LARGE errors
+        quality: 0.7, // Balanced quality for faster display and reasonable upload size
       });
 
       if (!result.canceled && result.assets[0]) {
+        // Immediately set the image URI for instant display
         onImageSelected(result.assets[0].uri);
       }
     } catch (error) {
@@ -60,7 +61,7 @@ export function ImagePicker({
 
   return (
     <View style={styles.container}>
-      <Text className="text-ink-700 text-sm mb-2 tracking-wider" style={{ letterSpacing: 1 }}>
+      <Text style={{ color: '#3A3A3A', fontSize: 11, marginBottom: 10, letterSpacing: 2, fontWeight: '600' }}>
         {label}
       </Text>
 
@@ -74,19 +75,19 @@ export function ImagePicker({
         ]}
       >
         {loading ? (
-          <ActivityIndicator size="large" color="#5B7DB1" />
+          <ActivityIndicator size="large" color="#1a3d3d" />
         ) : imageUri ? (
           <>
             <Image source={{ uri: imageUri }} style={styles.image} />
             <View style={styles.changeOverlay}>
-              <FontAwesome name="refresh" size={24} color="#FAFAF7" />
-              <Text className="text-offwhite text-sm mt-2">変更</Text>
+              <FontAwesome name="refresh" size={20} color="#FAFAF7" />
+              <Text style={{ color: '#FAFAF7', fontSize: 12, marginTop: 8, fontWeight: '500' }}>変更</Text>
             </View>
           </>
         ) : (
           <View style={styles.placeholder}>
-            <FontAwesome name="camera" size={40} color="#777777" />
-            <Text className="text-ink-400 mt-3 text-base">画像を選択</Text>
+            <FontAwesome name="image" size={32} color="#AAAAAA" />
+            <Text style={{ color: '#999999', marginTop: 12, fontSize: 13 }}>画像を選択</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -100,11 +101,11 @@ const styles = StyleSheet.create({
   },
   pickerButton: {
     aspectRatio: 3 / 4,
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#F5F5F3',
-    borderWidth: 2,
-    borderColor: '#EAEAEA',
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1.5,
+    borderColor: '#D4D4D4',
     borderStyle: 'dashed',
   },
   pickerButtonDisabled: {
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
   },
   changeOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(26, 61, 61, 0.8)',
+    backgroundColor: 'rgba(26, 61, 61, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     opacity: 0,

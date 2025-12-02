@@ -17,9 +17,11 @@ import { GeneratingView } from '@/components/fusion/GeneratingView';
 import { FusionResultView } from '@/components/fusion/FusionResultView';
 import { FusionState } from '@/types/fusion';
 import { analyzeFusion, generateDesign, uploadImageToR2 } from '@/lib/fusion-api';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function FusionScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [fusionState, setFusionState] = useState<FusionState>({
     stage: 'UPLOAD',
     imageA: null,
@@ -28,6 +30,7 @@ export default function FusionScreen() {
     generatedImageUrl: null,
     generationId: null,
     triptychUrls: null,
+    quadtychUrls: null, // v4.0: Quadtych URLs
     error: null,
   });
 
@@ -53,14 +56,26 @@ export default function FusionScreen() {
       return;
     }
 
+    if (!user) {
+      Alert.alert(
+        'ログインが必要です',
+        'デザインを生成するにはログインしてください',
+        [
+          { text: 'キャンセル', style: 'cancel' },
+          { text: 'ログインへ', onPress: () => router.replace('/login') },
+        ]
+      );
+      return;
+    }
+
     try {
       // Stage 1: ANALYZING
       setFusionState((prev) => ({ ...prev, stage: 'ANALYZING', error: null }));
 
       // Upload images to R2
       const [imageAUrl, imageBUrl] = await Promise.all([
-        uploadImageToR2(fusionState.imageA!.uri),
-        uploadImageToR2(fusionState.imageB!.uri),
+        uploadImageToR2(fusionState.imageA!.uri, user.id),
+        uploadImageToR2(fusionState.imageB!.uri, user.id),
       ]);
 
       // Analyze with Gemini Vision
@@ -86,12 +101,24 @@ export default function FusionScreen() {
   const handleGenerate = async () => {
     if (!fusionState.fusionSpec) return;
 
+    if (!user) {
+      Alert.alert(
+        'ログインが必要です',
+        'デザイン生成を続けるにはログインしてください',
+        [
+          { text: 'キャンセル', style: 'cancel' },
+          { text: 'ログインへ', onPress: () => router.replace('/login') },
+        ]
+      );
+      return;
+    }
+
     try {
       // Stage 3: GENERATING
       setFusionState((prev) => ({ ...prev, stage: 'GENERATING', error: null }));
 
-      // Generate design with Gemini 3 Pro (triptych mode)
-      const result = await generateDesign(fusionState.fusionSpec);
+      // Generate design with Gemini 3 Pro (v4.0: quadtych mode)
+      const result = await generateDesign(fusionState.fusionSpec, user.id);
       console.log('[fusion] Generation result:', result);
 
       // Stage 4: REVEALING (will be implemented next)
@@ -101,6 +128,7 @@ export default function FusionScreen() {
         generationId: result.generationId,
         generatedImageUrl: result.imageUrl,
         triptychUrls: result.triptychUrls || null,
+        quadtychUrls: result.quadtychUrls || null, // v4.0: Quadtych URLs
       }));
 
       // For now, go directly to DONE
@@ -127,27 +155,32 @@ export default function FusionScreen() {
       generatedImageUrl: null,
       generationId: null,
       triptychUrls: null,
+      quadtychUrls: null, // v4.0: Reset quadtych URLs
       error: null,
     });
   };
 
   const handleSaveToWardrobe = () => {
+    console.log('[fusion] handleSaveToWardrobe called');
+    console.log('[fusion] generationId:', fusionState.generationId);
+    console.log('[fusion] generatedImageUrl:', fusionState.generatedImageUrl);
+
     if (!fusionState.generationId || !fusionState.generatedImageUrl) {
+      console.log('[fusion] Missing data, showing alert');
       Alert.alert('エラー', '保存する画像が見つかりません');
       return;
     }
 
-    // TODO: Implement wardrobe save functionality
-    Alert.alert(
-      '保存完了',
-      'ワードローブに保存されました',
-      [
-        {
-          text: 'OK',
-          onPress: handleBackToUpload,
-        },
-      ]
-    );
+    console.log('[fusion] Navigating to publication-settings');
+    // Navigate to Publication Settings screen
+    router.push({
+      pathname: '/publication-settings',
+      params: {
+        imageUrl: fusionState.generatedImageUrl,
+        generationId: fusionState.generationId,
+        fusionSpec: JSON.stringify(fusionState.fusionSpec),
+      },
+    });
   };
 
   const renderContent = () => {
@@ -180,13 +213,14 @@ export default function FusionScreen() {
             imageUrl={fusionState.generatedImageUrl}
             fusionSpec={fusionState.fusionSpec}
             triptychUrls={fusionState.triptychUrls}
+            quadtychUrls={fusionState.quadtychUrls} // v4.0: Pass quadtych URLs
             onClose={handleBackToUpload}
             onSaveToWardrobe={handleSaveToWardrobe}
           />
         ) : (
-          <View className="flex-1 items-center justify-center px-6">
-            <Text className="text-ink-900 text-2xl">生成完了！</Text>
-            <Text className="text-ink-600 mt-4">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
+            <Text style={{ color: '#1A1A1A', fontSize: 24 }}>生成完了！</Text>
+            <Text style={{ color: '#777777', marginTop: 16 }}>
               生成されたデザインが表示されます
             </Text>
           </View>
@@ -196,21 +230,21 @@ export default function FusionScreen() {
       default:
         return (
           <ScrollView
-            className="flex-1"
+            style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
             {/* Description */}
-            <View className="px-6 pt-2 pb-6">
-              <Text className="text-ink-600 text-center text-base leading-6">
+            <View style={{ paddingHorizontal: 32, paddingTop: 24, paddingBottom: 40 }}>
+              <Text style={{ color: '#777777', textAlign: 'center', fontSize: 13, lineHeight: 20 }}>
                 2つの画像を融合させて{'\n'}
                 新しいデザインを生成します
               </Text>
             </View>
 
             {/* Image Pickers */}
-            <View className="px-6 pb-8">
-              <View className="flex-row gap-4">
+            <View style={{ paddingHorizontal: 24, paddingBottom: 40 }}>
+              <View style={{ flexDirection: 'row', gap: 16 }}>
                 <ImagePicker
                   imageUri={fusionState.imageA?.uri || null}
                   onImageSelected={handleImageASelected}
@@ -227,20 +261,20 @@ export default function FusionScreen() {
             </View>
 
             {/* Instructions */}
-            <View className="px-6 pb-8">
-              <View className="bg-ink-50 rounded-2xl p-5">
-                <View className="flex-row items-start mb-3">
+            <View style={{ paddingHorizontal: 24, paddingBottom: 40 }}>
+              <View style={{ backgroundColor: '#FAFAFA', borderRadius: 12, padding: 18, borderWidth: 1, borderColor: '#ECECEC' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
                   <FontAwesome
-                    name="lightbulb-o"
-                    size={20}
-                    color="#5B7DB1"
-                    style={{ marginRight: 12, marginTop: 2 }}
+                    name="info-circle"
+                    size={16}
+                    color="#1a3d3d"
+                    style={{ marginRight: 12, marginTop: 1 }}
                   />
-                  <View className="flex-1">
-                    <Text className="text-ink-900 font-semibold mb-2">
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#3A3A3A', fontWeight: '600', marginBottom: 6, fontSize: 12 }}>
                       ヒント
                     </Text>
-                    <Text className="text-ink-600 text-sm leading-5">
+                    <Text style={{ color: '#666666', fontSize: 11, lineHeight: 17 }}>
                       • できるだけ明確で高品質な画像を使用してください{'\n'}
                       • 異なるスタイルや素材の組み合わせが面白い結果を生みます{'\n'}
                       • AIが2つの画像の特徴を分析して融合します
@@ -251,26 +285,31 @@ export default function FusionScreen() {
             </View>
 
             {/* Action Button */}
-            <View className="px-6 pb-12">
+            <View style={{ paddingHorizontal: 24, paddingBottom: 60 }}>
               <TouchableOpacity
-                className={`rounded-2xl py-5 items-center ${
-                  canProceed ? 'bg-darkTeal' : 'bg-ink-200'
-                }`}
                 activeOpacity={0.8}
                 onPress={handleFuse}
                 disabled={!canProceed}
                 style={[
+                  {
+                    borderRadius: 16,
+                    paddingVertical: 20,
+                    alignItems: 'center',
+                    backgroundColor: canProceed ? '#1a3d3d' : '#DCDCDC',
+                  },
                   styles.fuseButton,
                   canProceed && styles.fuseButtonActive,
                 ]}
               >
                 <Text
-                  className={`tracking-wider text-lg ${
-                    canProceed ? 'text-offwhite' : 'text-ink-400'
-                  }`}
-                  style={{ fontFamily: 'Trajan', letterSpacing: 2 }}
+                  style={{
+                    fontFamily: 'Trajan',
+                    letterSpacing: 2,
+                    fontSize: 18,
+                    color: canProceed ? '#FAFAF7' : '#999999',
+                  }}
                 >
-                  FUSE IMAGES
+                  ANALYZE
                 </Text>
               </TouchableOpacity>
             </View>
@@ -280,22 +319,21 @@ export default function FusionScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <SafeAreaView className="flex-1" edges={['top']}>
-        {/* Floating Back Button - Immersive Style */}
+    <View style={{ flex: 1, backgroundColor: '#F2F0E9' }}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        {/* Back Button - Icon Only */}
         <TouchableOpacity
           onPress={() => router.back()}
           activeOpacity={0.7}
-          className="absolute top-12 left-6 z-50 w-10 h-10 items-center justify-center rounded-full bg-white/20"
           style={{
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 4,
+            position: 'absolute',
+            top: 16,
+            left: 24,
+            zIndex: 50,
+            padding: 8,
           }}
         >
-          <FontAwesome name="chevron-left" size={20} color="#1a3d3d" />
+          <FontAwesome name="chevron-left" size={24} color="#1a3d3d" />
         </TouchableOpacity>
 
         {renderContent()}

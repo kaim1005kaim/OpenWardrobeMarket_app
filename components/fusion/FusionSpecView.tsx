@@ -11,42 +11,43 @@ interface FusionSpecViewProps {
 
 export function FusionSpecView({ fusionSpec, onGenerate, onBack }: FusionSpecViewProps) {
   return (
-    <View className="flex-1">
+    <View style={{ flex: 1 }}>
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         {/* Title */}
-        <View className="px-6 pt-8 pb-6">
+        <View style={{ paddingHorizontal: 24, paddingTop: 32, paddingBottom: 24 }}>
           <Text
-            className="text-ink-900 text-center mb-3"
             style={{
               fontFamily: 'Trajan',
               fontSize: 32,
               letterSpacing: 4,
               fontWeight: '400',
+              color: '#1A1A1A',
+              textAlign: 'center',
+              marginBottom: 12,
             }}
           >
             FUSION PREVIEW
           </Text>
-          <Text className="text-ink-600 text-center text-base leading-6">
+          <Text style={{ color: '#777777', textAlign: 'center', fontSize: 16, lineHeight: 24 }}>
             AIが抽出したデザイン要素
           </Text>
         </View>
 
         {/* Palette */}
-        <View className="px-6 pb-6">
-          <View className="bg-ink-50 rounded-2xl p-5">
+        <View style={{ paddingHorizontal: 24, paddingBottom: 24 }}>
+          <View style={{ backgroundColor: '#F5F5F3', borderRadius: 16, padding: 20 }}>
             <Text
-              className="text-ink-900 mb-4 tracking-wider"
-              style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1 }}
+              style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1, color: '#1A1A1A', marginBottom: 16 }}
             >
               COLOR PALETTE
             </Text>
-            <View className="flex-row flex-wrap gap-3">
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
               {fusionSpec.palette.map((color, index) => (
-                <View key={index} className="items-center">
+                <View key={index} style={{ alignItems: 'center' }}>
                   <View
                     style={[
                       styles.colorSwatch,
@@ -55,8 +56,8 @@ export function FusionSpecView({ fusionSpec, onGenerate, onBack }: FusionSpecVie
                       },
                     ]}
                   />
-                  <Text className="text-ink-600 text-xs mt-2">{color.name}</Text>
-                  <Text className="text-ink-500 text-xs">{Math.round(color.weight * 100)}%</Text>
+                  <Text style={{ color: '#777777', fontSize: 12, marginTop: 8 }}>{color.name}</Text>
+                  <Text style={{ color: '#999999', fontSize: 12 }}>{Math.round(color.weight * 100)}%</Text>
                 </View>
               ))}
             </View>
@@ -64,31 +65,29 @@ export function FusionSpecView({ fusionSpec, onGenerate, onBack }: FusionSpecVie
         </View>
 
         {/* Silhouette */}
-        <View className="px-6 pb-6">
-          <View className="bg-ink-50 rounded-2xl p-5">
+        <View style={{ paddingHorizontal: 24, paddingBottom: 24 }}>
+          <View style={{ backgroundColor: '#F5F5F3', borderRadius: 16, padding: 20 }}>
             <Text
-              className="text-ink-900 mb-4 tracking-wider"
-              style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1 }}
+              style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1, color: '#1A1A1A', marginBottom: 16 }}
             >
               SILHOUETTE
             </Text>
-            <Text className="text-ink-900 font-semibold text-base capitalize">{fusionSpec.silhouette}</Text>
+            <Text style={{ color: '#1A1A1A', fontWeight: '600', fontSize: 16, textTransform: 'capitalize' }}>{fusionSpec.silhouette}</Text>
           </View>
         </View>
 
         {/* Materials */}
-        <View className="px-6 pb-6">
-          <View className="bg-ink-50 rounded-2xl p-5">
+        <View style={{ paddingHorizontal: 24, paddingBottom: 24 }}>
+          <View style={{ backgroundColor: '#F5F5F3', borderRadius: 16, padding: 20 }}>
             <Text
-              className="text-ink-900 mb-4 tracking-wider"
-              style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1 }}
+              style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1, color: '#1A1A1A', marginBottom: 16 }}
             >
               MATERIALS
             </Text>
-            <View className="flex-row flex-wrap gap-2">
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {fusionSpec.materials.map((material, index) => (
-                <View key={index} className="bg-white rounded-full px-4 py-2">
-                  <Text className="text-ink-700 text-sm capitalize">{material}</Text>
+                <View key={index} style={{ backgroundColor: '#FFFFFF', borderRadius: 9999, paddingHorizontal: 16, paddingVertical: 8 }}>
+                  <Text style={{ color: '#3A3A3A', fontSize: 14, textTransform: 'capitalize' }}>{material}</Text>
                 </View>
               ))}
             </View>
@@ -96,36 +95,34 @@ export function FusionSpecView({ fusionSpec, onGenerate, onBack }: FusionSpecVie
         </View>
 
         {/* Motif Abstractions */}
-        <View className="px-6 pb-6">
-          <View className="bg-ink-50 rounded-2xl p-5">
+        <View style={{ paddingHorizontal: 24, paddingBottom: 24 }}>
+          <View style={{ backgroundColor: '#F5F5F3', borderRadius: 16, padding: 20 }}>
             <Text
-              className="text-ink-900 mb-4 tracking-wider"
-              style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1 }}
+              style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1, color: '#1A1A1A', marginBottom: 16 }}
             >
               DESIGN ELEMENTS
             </Text>
             {fusionSpec.motif_abstractions.map((motif, index) => (
-              <View key={index} className="mb-4 last:mb-0">
-                <Text className="text-ink-900 font-semibold mb-1 capitalize">{motif.operation}</Text>
-                <Text className="text-ink-600 text-sm leading-5">{motif.notes}</Text>
+              <View key={index} style={{ marginBottom: index === fusionSpec.motif_abstractions.length - 1 ? 0 : 16 }}>
+                <Text style={{ color: '#1A1A1A', fontWeight: '600', marginBottom: 4, textTransform: 'capitalize' }}>{motif.operation}</Text>
+                <Text style={{ color: '#777777', fontSize: 14, lineHeight: 20 }}>{motif.notes}</Text>
               </View>
             ))}
           </View>
         </View>
 
         {/* Details */}
-        <View className="px-6 pb-6">
-          <View className="bg-ink-50 rounded-2xl p-5">
+        <View style={{ paddingHorizontal: 24, paddingBottom: 24 }}>
+          <View style={{ backgroundColor: '#F5F5F3', borderRadius: 16, padding: 20 }}>
             <Text
-              className="text-ink-900 mb-4 tracking-wider"
-              style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1 }}
+              style={{ fontFamily: 'Trajan', fontSize: 14, letterSpacing: 1, color: '#1A1A1A', marginBottom: 16 }}
             >
               DETAILS
             </Text>
-            <View className="flex-row flex-wrap gap-2">
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {fusionSpec.details.map((detail, index) => (
-                <View key={index} className="bg-white rounded-full px-4 py-2">
-                  <Text className="text-ink-700 text-sm">{detail}</Text>
+                <View key={index} style={{ backgroundColor: '#FFFFFF', borderRadius: 9999, paddingHorizontal: 16, paddingVertical: 8 }}>
+                  <Text style={{ color: '#3A3A3A', fontSize: 14 }}>{detail}</Text>
                 </View>
               ))}
             </View>
@@ -133,27 +130,28 @@ export function FusionSpecView({ fusionSpec, onGenerate, onBack }: FusionSpecVie
         </View>
 
         {/* Action Buttons */}
-        <View className="px-6 pb-12">
+        <View style={{ paddingHorizontal: 24, paddingBottom: 48 }}>
           <TouchableOpacity
-            className="bg-darkTeal rounded-2xl py-5 items-center mb-3"
+            style={[
+              styles.generateButton,
+              { backgroundColor: '#1a3d3d', borderRadius: 16, paddingVertical: 20, alignItems: 'center', marginBottom: 12 }
+            ]}
             activeOpacity={0.8}
             onPress={onGenerate}
-            style={styles.generateButton}
           >
             <Text
-              className="text-offwhite tracking-wider text-lg"
-              style={{ fontFamily: 'Trajan', letterSpacing: 2 }}
+              style={{ fontFamily: 'Trajan', letterSpacing: 2, color: '#FAFAF7', fontSize: 18 }}
             >
               GENERATE DESIGN
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            className="py-4 items-center"
+            style={{ paddingVertical: 16, alignItems: 'center' }}
             activeOpacity={0.7}
             onPress={onBack}
           >
-            <Text className="text-ink-600 text-sm tracking-wider">
+            <Text style={{ color: '#777777', fontSize: 14, letterSpacing: 1 }}>
               やり直す
             </Text>
           </TouchableOpacity>
