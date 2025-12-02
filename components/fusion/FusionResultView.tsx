@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Image, Animated, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { FusionSpec, TriptychUrls } from '@/types/fusion';
+import { FusionSpec, TriptychUrls, QuadtychUrls } from '@/types/fusion';
 
 interface FusionResultViewProps {
   imageUrl: string;
   fusionSpec: FusionSpec | null;
   triptychUrls?: TriptychUrls | null;
+  quadtychUrls?: QuadtychUrls | null; // v4.0: Quadtych support
   onClose?: () => void;
   onSaveToWardrobe?: () => void;
 }
@@ -14,17 +15,25 @@ interface FusionResultViewProps {
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const IMAGE_WIDTH = SCREEN_WIDTH - 48; // Padding: 24px on each side
 
-export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, onSaveToWardrobe }: FusionResultViewProps) {
+export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychUrls, onClose, onSaveToWardrobe }: FusionResultViewProps) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
-  const [activeView, setActiveView] = useState<'front' | 'side' | 'back'>('front');
+
+  // v4.0: View mode state - 'main' for hero view, 'spec' for 3-view technical specs
+  const [viewMode, setViewMode] = useState<'main' | 'spec'>('main');
+  const [activeSpecView, setActiveSpecView] = useState<'front' | 'side' | 'back'>('front');
   const [imageAspectRatio, setImageAspectRatio] = useState<number | undefined>(undefined);
   const [previousAspectRatio, setPreviousAspectRatio] = useState<number | undefined>(undefined);
 
+  const hasQuadtych = !!quadtychUrls;
   const hasTriptych = !!triptychUrls;
-  const currentImageUrl = hasTriptych && triptychUrls
-    ? triptychUrls[activeView]
-    : imageUrl;
+
+  // v4.0: Determine current image URL based on view mode
+  const currentImageUrl = hasQuadtych && quadtychUrls
+    ? (viewMode === 'main' ? quadtychUrls.main : quadtychUrls[activeSpecView])
+    : (hasTriptych && triptychUrls
+      ? triptychUrls[activeSpecView]
+      : imageUrl);
 
   useEffect(() => {
     Animated.parallel([
@@ -47,7 +56,7 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
     if (imageAspectRatio) {
       setPreviousAspectRatio(imageAspectRatio);
     }
-  }, [activeView]);
+  }, [viewMode, activeSpecView]);
 
   const handleImageLoad = (event: any) => {
     const { width, height } = event.nativeEvent.source;
@@ -60,50 +69,199 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
 
   return (
     <ScrollView
-      className="flex-1 bg-background"
+      style={{ flex: 1, backgroundColor: '#F2F0E9' }}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingBottom: 24 }}
     >
-      <View className="px-6 pt-6">
-        {/* Triptych View Selector (if triptych available) - Minimal Style */}
-        {hasTriptych && (
+      <View style={{ paddingHorizontal: 16, paddingTop: 24 }}>
+        {/* v4.0: Quadtych View Mode Selector (MAIN vs SPEC MODE) */}
+        {hasQuadtych && (
           <Animated.View
-            style={{ opacity: fadeAnim }}
-            className="mb-6"
+            style={{ opacity: fadeAnim, marginBottom: 16 }}
           >
-            <View className="flex-row justify-center space-x-8">
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24 }}>
               <TouchableOpacity
-                onPress={() => setActiveView('front')}
+                onPress={() => setViewMode('main')}
                 activeOpacity={0.7}
-                className={`pb-2 ${activeView === 'front' ? 'border-b-2 border-darkTeal' : ''}`}
+                style={{
+                  paddingVertical: 12,
+                  paddingHorizontal: 24,
+                  borderRadius: 12,
+                  backgroundColor: viewMode === 'main' ? '#1a3d3d' : 'transparent',
+                  borderWidth: 1,
+                  borderColor: viewMode === 'main' ? '#1a3d3d' : 'rgba(26, 61, 61, 0.3)',
+                }}
               >
                 <Text
-                  className={activeView === 'front' ? 'text-darkTeal' : 'text-ink-600/60'}
-                  style={{ fontFamily: 'Trajan', fontSize: 12, letterSpacing: 2 }}
+                  style={{
+                    fontFamily: 'Trajan',
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    color: viewMode === 'main' ? '#FAFAF7' : 'rgba(119, 119, 119, 0.8)',
+                  }}
+                >
+                  MAIN
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setViewMode('spec')}
+                activeOpacity={0.7}
+                style={{
+                  paddingVertical: 12,
+                  paddingHorizontal: 24,
+                  borderRadius: 12,
+                  backgroundColor: viewMode === 'spec' ? '#1a3d3d' : 'transparent',
+                  borderWidth: 1,
+                  borderColor: viewMode === 'spec' ? '#1a3d3d' : 'rgba(26, 61, 61, 0.3)',
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: 'Trajan',
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    color: viewMode === 'spec' ? '#FAFAF7' : 'rgba(119, 119, 119, 0.8)',
+                  }}
+                >
+                  SPEC MODE
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
+
+        {/* v4.0: Spec View Selector (FRONT/SIDE/BACK) - Only shown in SPEC MODE */}
+        {hasQuadtych && viewMode === 'spec' && (
+          <Animated.View
+            style={{ opacity: fadeAnim, marginBottom: 24 }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>
+              <TouchableOpacity
+                onPress={() => setActiveSpecView('front')}
+                activeOpacity={0.7}
+                style={{
+                  paddingBottom: 8,
+                  borderBottomWidth: activeSpecView === 'front' ? 2 : 0,
+                  borderBottomColor: '#1a3d3d',
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: 'Trajan',
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    color: activeSpecView === 'front' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                  }}
                 >
                   FRONT
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => setActiveView('side')}
+                onPress={() => setActiveSpecView('side')}
                 activeOpacity={0.7}
-                className={`pb-2 ${activeView === 'side' ? 'border-b-2 border-darkTeal' : ''}`}
+                style={{
+                  paddingBottom: 8,
+                  borderBottomWidth: activeSpecView === 'side' ? 2 : 0,
+                  borderBottomColor: '#1a3d3d',
+                }}
               >
                 <Text
-                  className={activeView === 'side' ? 'text-darkTeal' : 'text-ink-600/60'}
-                  style={{ fontFamily: 'Trajan', fontSize: 12, letterSpacing: 2 }}
+                  style={{
+                    fontFamily: 'Trajan',
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    color: activeSpecView === 'side' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                  }}
                 >
                   SIDE
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => setActiveView('back')}
+                onPress={() => setActiveSpecView('back')}
                 activeOpacity={0.7}
-                className={`pb-2 ${activeView === 'back' ? 'border-b-2 border-darkTeal' : ''}`}
+                style={{
+                  paddingBottom: 8,
+                  borderBottomWidth: activeSpecView === 'back' ? 2 : 0,
+                  borderBottomColor: '#1a3d3d',
+                }}
               >
                 <Text
-                  className={activeView === 'back' ? 'text-darkTeal' : 'text-ink-600/60'}
-                  style={{ fontFamily: 'Trajan', fontSize: 12, letterSpacing: 2 }}
+                  style={{
+                    fontFamily: 'Trajan',
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    color: activeSpecView === 'back' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                  }}
+                >
+                  BACK
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
+
+        {/* v3.0: Triptych View Selector (deprecated, fallback) */}
+        {!hasQuadtych && hasTriptych && (
+          <Animated.View
+            style={{ opacity: fadeAnim, marginBottom: 24 }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>
+              <TouchableOpacity
+                onPress={() => setActiveSpecView('front')}
+                activeOpacity={0.7}
+                style={{
+                  paddingBottom: 8,
+                  borderBottomWidth: activeSpecView === 'front' ? 2 : 0,
+                  borderBottomColor: '#1a3d3d',
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: 'Trajan',
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    color: activeSpecView === 'front' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                  }}
+                >
+                  FRONT
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setActiveSpecView('side')}
+                activeOpacity={0.7}
+                style={{
+                  paddingBottom: 8,
+                  borderBottomWidth: activeSpecView === 'side' ? 2 : 0,
+                  borderBottomColor: '#1a3d3d',
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: 'Trajan',
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    color: activeSpecView === 'side' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                  }}
+                >
+                  SIDE
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setActiveSpecView('back')}
+                activeOpacity={0.7}
+                style={{
+                  paddingBottom: 8,
+                  borderBottomWidth: activeSpecView === 'back' ? 2 : 0,
+                  borderBottomColor: '#1a3d3d',
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: 'Trajan',
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    color: activeSpecView === 'back' ? '#1a3d3d' : 'rgba(119, 119, 119, 0.6)',
+                  }}
                 >
                   BACK
                 </Text>
@@ -139,37 +297,45 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
           <Animated.View
             style={{
               opacity: fadeAnim,
+              marginBottom: 24,
             }}
-            className="mb-6"
           >
-            <View className="rounded-3xl p-6 border border-ink-200" style={{ backgroundColor: '#F8F7F4' }}>
-              <View className="flex-row items-center mb-4">
+            <View style={{ borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#E5E5E5', backgroundColor: '#F8F7F4' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
                 <FontAwesome name="pencil" size={18} color="#5B7DB1" />
                 <Text
-                  className="text-ink-900 ml-2"
                   style={{
                     fontFamily: 'Trajan',
                     fontSize: 14,
                     letterSpacing: 2,
+                    color: '#1A1A1A',
+                    marginLeft: 8,
                   }}
                 >
                   AI DESIGN NOTE
                 </Text>
               </View>
 
-              <Text className="text-ink-600 text-base leading-6 italic mb-4">
+              <Text style={{ color: '#777777', fontSize: 16, lineHeight: 24, fontStyle: 'italic', marginBottom: 16 }}>
                 "{fusionSpec.fusion_concept}"
               </Text>
 
               {/* Emotional Keywords */}
               {fusionSpec.emotional_keywords && fusionSpec.emotional_keywords.length > 0 && (
-                <View className="flex-row flex-wrap gap-2 mt-2">
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                   {fusionSpec.emotional_keywords.map((keyword, index) => (
                     <View
                       key={index}
-                      className="px-3 py-1 bg-darkTeal/10 rounded-full border border-darkTeal/20"
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 4,
+                        backgroundColor: 'rgba(26, 61, 61, 0.1)',
+                        borderRadius: 9999,
+                        borderWidth: 1,
+                        borderColor: 'rgba(26, 61, 61, 0.2)',
+                      }}
                     >
-                      <Text className="text-darkTeal text-xs font-semibold">
+                      <Text style={{ color: '#1a3d3d', fontSize: 12, fontWeight: '600' }}>
                         {keyword}
                       </Text>
                     </View>
@@ -185,25 +351,26 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
           <Animated.View
             style={{
               opacity: fadeAnim,
+              marginBottom: 24,
             }}
-            className="mb-6"
           >
-            <View className="rounded-3xl p-6 border border-ink-200" style={{ backgroundColor: '#F8F7F4' }}>
-              <View className="flex-row items-center mb-3">
+            <View style={{ borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#E5E5E5', backgroundColor: '#F8F7F4' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                 <FontAwesome name="lightbulb-o" size={18} color="#5B7DB1" />
                 <Text
-                  className="text-ink-900 ml-2"
                   style={{
                     fontFamily: 'Trajan',
                     fontSize: 14,
                     letterSpacing: 1.5,
+                    color: '#1A1A1A',
+                    marginLeft: 8,
                   }}
                 >
                   FUSION STRATEGY
                 </Text>
               </View>
 
-              <Text className="text-ink-600 text-sm leading-5">
+              <Text style={{ color: '#777777', fontSize: 14, lineHeight: 20 }}>
                 {fusionSpec.dominant_trait_analysis}
               </Text>
             </View>
@@ -215,39 +382,40 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
           <Animated.View
             style={{
               opacity: fadeAnim,
+              marginBottom: 24,
             }}
-            className="mb-6"
           >
-            <View className="rounded-3xl p-6 border border-ink-200" style={{ backgroundColor: '#F8F7F4' }}>
+            <View style={{ borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#E5E5E5', backgroundColor: '#F8F7F4' }}>
               <Text
-                className="text-ink-900 mb-4"
                 style={{
                   fontFamily: 'Trajan',
                   fontSize: 14,
                   letterSpacing: 1.5,
+                  color: '#1A1A1A',
+                  marginBottom: 16,
                 }}
               >
                 DESIGN SPECIFICATIONS
               </Text>
 
               {/* Silhouette */}
-              <View className="mb-4">
-                <Text className="text-ink-600 text-xs uppercase mb-1 font-semibold">
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ color: '#777777', fontSize: 12, textTransform: 'uppercase', marginBottom: 4, fontWeight: '600' }}>
                   Silhouette
                 </Text>
-                <Text className="text-ink-800 text-base capitalize">
+                <Text style={{ color: '#2A2A2A', fontSize: 16, textTransform: 'capitalize' }}>
                   {fusionSpec.silhouette}
                 </Text>
               </View>
 
               {/* Color Palette */}
-              <View className="mb-4">
-                <Text className="text-ink-600 text-xs uppercase mb-2 font-semibold">
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ color: '#777777', fontSize: 12, textTransform: 'uppercase', marginBottom: 8, fontWeight: '600' }}>
                   Color Palette
                 </Text>
-                <View className="flex-row flex-wrap gap-2">
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {fusionSpec.palette.map((color, index) => (
-                    <View key={index} className="flex-row items-center">
+                    <View key={index} style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <View
                         style={{
                           width: 24,
@@ -259,7 +427,7 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
                           borderColor: '#E5E5E5',
                         }}
                       />
-                      <Text className="text-ink-700 text-sm">
+                      <Text style={{ color: '#3A3A3A', fontSize: 14 }}>
                         {color.name} ({Math.round(color.weight * 100)}%)
                       </Text>
                     </View>
@@ -268,11 +436,11 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
               </View>
 
               {/* Materials */}
-              <View className="mb-4">
-                <Text className="text-ink-600 text-xs uppercase mb-1 font-semibold">
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ color: '#777777', fontSize: 12, textTransform: 'uppercase', marginBottom: 4, fontWeight: '600' }}>
                   Materials
                 </Text>
-                <Text className="text-ink-800 text-sm leading-5">
+                <Text style={{ color: '#2A2A2A', fontSize: 14, lineHeight: 20 }}>
                   {fusionSpec.materials.join(', ')}
                 </Text>
               </View>
@@ -280,13 +448,13 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
               {/* Design Details */}
               {fusionSpec.details && fusionSpec.details.length > 0 && (
                 <View>
-                  <Text className="text-ink-600 text-xs uppercase mb-2 font-semibold">
+                  <Text style={{ color: '#777777', fontSize: 12, textTransform: 'uppercase', marginBottom: 8, fontWeight: '600' }}>
                     Construction Details
                   </Text>
                   {fusionSpec.details.map((detail, index) => (
-                    <View key={index} className="flex-row items-start mb-1">
-                      <Text className="text-darkTeal mr-2">•</Text>
-                      <Text className="text-ink-700 text-sm flex-1 leading-5">
+                    <View key={index} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
+                      <Text style={{ color: '#1a3d3d', marginRight: 8 }}>•</Text>
+                      <Text style={{ color: '#3A3A3A', fontSize: 14, flex: 1, lineHeight: 20 }}>
                         {detail}
                       </Text>
                     </View>
@@ -298,18 +466,23 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
         )}
 
         {/* Action Buttons - Outline Style */}
-        <View className="gap-4">
+        <View style={{ gap: 16 }}>
           <TouchableOpacity
-            className="border-2 border-darkTeal rounded-2xl py-4 items-center active:bg-darkTeal/5"
+            style={{
+              borderRadius: 16,
+              paddingVertical: 16,
+              alignItems: 'center',
+              backgroundColor: '#2D7A4F',
+            }}
             activeOpacity={0.8}
             onPress={onSaveToWardrobe}
           >
             <Text
-              className="text-darkTeal"
               style={{
                 fontFamily: 'Trajan',
                 fontSize: 14,
                 letterSpacing: 2,
+                color: '#FAFAF7',
               }}
             >
               SAVE TO WARDROBE
@@ -318,16 +491,23 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, onClose, 
 
           {onClose && (
             <TouchableOpacity
-              className="border border-ink-200 rounded-2xl py-4 items-center active:bg-ink-900/5"
+              style={{
+                borderWidth: 1,
+                borderColor: '#E5E5E5',
+                borderRadius: 16,
+                paddingVertical: 16,
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+              }}
               activeOpacity={0.8}
               onPress={onClose}
             >
               <Text
-                className="text-ink-600"
                 style={{
                   fontFamily: 'Trajan',
                   fontSize: 14,
                   letterSpacing: 2,
+                  color: '#777777',
                 }}
               >
                 CREATE NEW FUSION
