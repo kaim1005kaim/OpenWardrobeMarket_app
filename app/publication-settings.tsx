@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,10 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  Modal,
+  Dimensions,
+  PanResponder,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -16,8 +20,11 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateMetadata } from '@/lib/gemini-metadata';
 import { apiClient } from '@/lib/api-client';
-import { FusionSpec } from '@/types/fusion';
+import { FusionSpec, QuadtychUrls } from '@/types/fusion';
 import { Event } from '@/types/event';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 export default function PublicationSettingsScreen() {
   const router = useRouter();
@@ -28,8 +35,10 @@ export default function PublicationSettingsScreen() {
   const imageUrl = params.imageUrl as string;
   const generationId = params.generationId as string;
   const fusionSpecJSON = params.fusionSpec as string;
+  const quadtychUrlsJSON = params.quadtychUrls as string | undefined;
 
   const [fusionSpec, setFusionSpec] = useState<FusionSpec | null>(null);
+  const [quadtychUrls, setQuadtychUrls] = useState<QuadtychUrls | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -45,6 +54,10 @@ export default function PublicationSettingsScreen() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [metadataGenerated, setMetadataGenerated] = useState(false);
 
+  // Gallery modal state
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
   useEffect(() => {
     if (fusionSpecJSON) {
       try {
@@ -54,7 +67,15 @@ export default function PublicationSettingsScreen() {
         console.error('[publication-settings] Failed to parse fusionSpec:', error);
       }
     }
-  }, [fusionSpecJSON]);
+    if (quadtychUrlsJSON) {
+      try {
+        const parsed = JSON.parse(quadtychUrlsJSON);
+        setQuadtychUrls(parsed);
+      } catch (error) {
+        console.error('[publication-settings] Failed to parse quadtychUrls:', error);
+      }
+    }
+  }, [fusionSpecJSON, quadtychUrlsJSON]);
 
   useEffect(() => {
     if (fusionSpec && imageUrl && !metadataGenerated) {
@@ -146,6 +167,7 @@ export default function PublicationSettingsScreen() {
         category: 'user-generated',
         price,
         saleType: status === 'published' ? 'buyout' : 'draft',
+        quadtych_urls: quadtychUrls, // Add quadtych URLs for FRONT/SIDE/BACK views
         generation_data: fusionSpec ? {
           session_id: generationId,
           parameters: {
@@ -217,6 +239,46 @@ export default function PublicationSettingsScreen() {
     setTags(tags.filter((t) => t !== tag));
   };
 
+  // Gallery helper functions
+  const galleryImages = quadtychUrls
+    ? [quadtychUrls.main, quadtychUrls.front, quadtychUrls.side, quadtychUrls.back]
+    : [imageUrl];
+
+  const imageLabels = quadtychUrls
+    ? ['MAIN', 'FRONT', 'SIDE', 'BACK']
+    : ['IMAGE'];
+
+  const openImageModal = (index: number) => {
+    setSelectedImageIndex(index);
+    setIsModalVisible(true);
+  };
+
+  const closeImageModal = () => {
+    setIsModalVisible(false);
+    setSelectedImageIndex(null);
+  };
+
+  // Swipe gesture handler for modal image gallery
+  const modalPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const SWIPE_THRESHOLD = 50;
+
+        if (gestureState.dx < -SWIPE_THRESHOLD && selectedImageIndex !== null && selectedImageIndex < galleryImages.length - 1) {
+          // Swipe left (next image)
+          setSelectedImageIndex(selectedImageIndex + 1);
+        } else if (gestureState.dx > SWIPE_THRESHOLD && selectedImageIndex !== null && selectedImageIndex > 0) {
+          // Swipe right (previous image)
+          setSelectedImageIndex(selectedImageIndex - 1);
+        }
+      },
+    })
+  ).current;
+
   if (isGenerating) {
     return (
       <View style={{ flex: 1, backgroundColor: '#F2F0E9', alignItems: 'center', justifyContent: 'center' }}>
@@ -252,15 +314,65 @@ export default function PublicationSettingsScreen() {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-          {/* Preview Image */}
+          {/* Preview Image Gallery */}
           <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 }}>
-            <View style={{ borderRadius: 16, overflow: 'hidden', backgroundColor: '#F5F5F3' }}>
-              <Image
-                source={{ uri: imageUrl }}
-                style={{ width: '100%', aspectRatio: 1 }}
-                resizeMode="cover"
-              />
-            </View>
+            {quadtychUrls ? (
+              // Quadtych: 4 vertical thumbnails
+              <View style={{ flexDirection: 'column', gap: 8 }}>
+                {galleryImages.map((url, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => openImageModal(index)}
+                    activeOpacity={0.8}
+                    style={{
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                      backgroundColor: '#F5F5F3',
+                      borderWidth: 1,
+                      borderColor: '#E5E5E5',
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 8 }}>
+                      <Image
+                        source={{ uri: url }}
+                        style={{ width: 60, height: 100, borderRadius: 8 }}
+                        resizeMode="cover"
+                      />
+                      <View style={{ marginLeft: 12, flex: 1 }}>
+                        <Text
+                          style={{
+                            fontFamily: 'Trajan',
+                            fontSize: 12,
+                            letterSpacing: 1.5,
+                            color: '#1A1A1A',
+                          }}
+                        >
+                          {imageLabels[index]}
+                        </Text>
+                        <Text style={{ color: '#777777', fontSize: 11, marginTop: 4 }}>
+                          Tap to view full screen
+                        </Text>
+                      </View>
+                      <FontAwesome name="chevron-right" size={16} color="#CCCCCC" />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              // Single image: Original layout
+              <TouchableOpacity
+                onPress={() => openImageModal(0)}
+                activeOpacity={0.9}
+              >
+                <View style={{ borderRadius: 16, overflow: 'hidden', backgroundColor: '#F5F5F3' }}>
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={{ width: '100%', aspectRatio: 1 }}
+                    resizeMode="cover"
+                  />
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Active Events Section */}
@@ -572,6 +684,63 @@ export default function PublicationSettingsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Full-screen Image Modal */}
+      <Modal
+        visible={isModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeImageModal}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.95)' }}>
+          {/* Header */}
+          <SafeAreaView edges={['top']}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 16 }}>
+              <Text
+                style={{
+                  fontFamily: 'Trajan',
+                  fontSize: 14,
+                  letterSpacing: 2,
+                  color: '#FFFFFF',
+                }}
+              >
+                {selectedImageIndex !== null ? imageLabels[selectedImageIndex] : ''}
+              </Text>
+              <TouchableOpacity onPress={closeImageModal} activeOpacity={0.7}>
+                <FontAwesome name="times" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+
+          {/* Full-screen Image */}
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} {...modalPanResponder.panHandlers}>
+            {selectedImageIndex !== null && (
+              <Image
+                source={{ uri: galleryImages[selectedImageIndex] }}
+                style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.8 }}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+
+          {/* Navigation Indicators */}
+          {galleryImages.length > 1 && (
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, paddingBottom: 40 }}>
+              {galleryImages.map((_, index) => (
+                <View
+                  key={index}
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: index === selectedImageIndex ? '#FFFFFF' : 'rgba(255, 255, 255, 0.3)',
+                  }}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }

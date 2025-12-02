@@ -246,8 +246,7 @@ export default function ArchiveScreen() {
                   <TouchableOpacity
                     key={gen.id}
                     onPress={() => {
-                      // TODO: Navigate to detail screen
-                      console.log('Open design:', gen.id, 'URL:', gen.image_url);
+                      router.push(`/item/${gen.id}`);
                     }}
                     activeOpacity={0.8}
                     style={{ width: '31.5%', aspectRatio: 1, borderRadius: 8, overflow: 'hidden', backgroundColor: '#E5E5E5' }}

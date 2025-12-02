@@ -79,6 +79,43 @@ class APIClient {
   getClient(): AxiosInstance {
     return this.client;
   }
+
+  /**
+   * Fetch similar items using vector search with tag-based fallback
+   * @param itemId - The item ID to find similar items for
+   * @param limit - Maximum number of similar items to return (default: 6)
+   * @returns Array of similar items
+   */
+  async getSimilarItems(itemId: string, limit: number = 6) {
+    try {
+      // Try vector search first (auto mode with hybrid if tags available)
+      const vectorResponse = await this.post<{ similar_items: any[] }>('/api/vector-search', {
+        itemId,
+        limit,
+        mode: 'auto',
+        threshold: 0.6,
+        vectorWeight: 0.7,
+        tagWeight: 0.3,
+      });
+
+      return vectorResponse.similar_items || [];
+    } catch (vectorError) {
+      console.warn('[api-client] Vector search failed, falling back to tag-based search:', vectorError);
+
+      try {
+        // Fallback to tag-based similarity search
+        const tagResponse = await this.post<{ similar_items: any[] }>('/api/similar-items', {
+          itemId,
+          limit,
+        });
+
+        return tagResponse.similar_items || [];
+      } catch (tagError) {
+        console.error('[api-client] Both vector and tag-based search failed:', tagError);
+        return [];
+      }
+    }
+  }
 }
 
 export const apiClient = new APIClient();

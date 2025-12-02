@@ -9,9 +9,17 @@ export interface PublishedItem {
   metadata?: {
     design_tokens?: any;
     fusion_result?: any;
+    fusion_spec?: any;
     base_images?: string[];
     demographic?: string;
     style?: string;
+    description?: string;
+    quadtych_urls?: {
+      main: string;
+      front: string;
+      side: string;
+      back: string;
+    };
   };
   created_at: string;
   updated_at: string;

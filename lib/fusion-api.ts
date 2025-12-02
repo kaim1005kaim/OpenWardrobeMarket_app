@@ -359,14 +359,17 @@ async function generateViaVercel(
   console.log('[generateViaVercel] Request payload.dna exists:', !!requestPayload.dna);
 
   // Step 1: Generate quadtych image (returns base64 for main/front/side/back)
-  const response = await apiClient.post<{
+  // Image generation takes 60-120 seconds, so we need a longer timeout
+  const response = await apiClient.getClient().post<{
     success: boolean;
     quadtych?: boolean;
     triptych?: boolean;
     imageData?: string | { main: string; front: string; side: string; back: string } | { front: string; side: string; back: string };
     mimeType: string;
     metadata: any;
-  }>('/api/nano/generate', requestPayload);
+  }>('/api/nano/generate', requestPayload, {
+    timeout: 180000, // 3 minutes timeout for image generation
+  }).then(res => res.data);
 
   if (!response.success || !response.imageData) {
     throw new Error('Failed to generate image: No image data received');

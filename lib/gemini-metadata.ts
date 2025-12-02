@@ -43,14 +43,14 @@ export async function generateMetadata(
     const title = generateTitleFromSpec(fusionSpec);
 
     // Use AI description or fallback to fusion concept
-    const description = response.description || fusionSpec.fusion_concept || '';
+    const description = response.description || fusionSpec?.fusion_concept || '';
 
     // Combine AI tags with fusion spec keywords
     const aiTags = response.tags || [];
     const specTags = [
-      fusionSpec.silhouette,
-      ...fusionSpec.materials.slice(0, 2),
-      ...fusionSpec.emotional_keywords.slice(0, 3),
+      fusionSpec?.silhouette,
+      ...(fusionSpec?.materials || []).slice(0, 2),
+      ...(fusionSpec?.emotional_keywords || []).slice(0, 3),
     ].filter(Boolean);
 
     const tags = [...new Set([...aiTags, ...specTags])].slice(0, 10);
@@ -74,16 +74,17 @@ export async function generateMetadata(
  * Generate a creative title from fusion spec
  */
 function generateTitleFromSpec(fusionSpec: FusionSpec): string {
-  const color = fusionSpec.palette[0]?.name || 'Mixed';
-  const material = fusionSpec.materials[0] || 'Fabric';
-  const keyword = fusionSpec.emotional_keywords[0] || '';
+  const color = fusionSpec?.palette?.[0]?.name || 'Mixed';
+  const material = fusionSpec?.materials?.[0] || 'Fabric';
+  const keyword = fusionSpec?.emotional_keywords?.[0] || '';
+  const silhouette = fusionSpec?.silhouette || 'Design';
 
   // Create variations
   const templates = [
-    `${color} ${fusionSpec.silhouette}`,
-    `${keyword} ${fusionSpec.silhouette} in ${color}`,
-    `${material} ${fusionSpec.silhouette}`,
-    `${fusionSpec.silhouette} with ${color} ${material}`,
+    `${color} ${silhouette}`,
+    `${keyword} ${silhouette} in ${color}`,
+    `${material} ${silhouette}`,
+    `${silhouette} with ${color} ${material}`,
   ];
 
   // Pick the first non-empty template
@@ -93,7 +94,7 @@ function generateTitleFromSpec(fusionSpec: FusionSpec): string {
 /**
  * Generate fallback metadata from fusion spec if Gemini fails
  */
-function generateFallbackMetadata(fusionSpec: FusionSpec): GeneratedMetadata {
+function generateFallbackMetadata(fusionSpec: FusionSpec | null): GeneratedMetadata {
   // Safety check
   if (!fusionSpec) {
     return {
@@ -103,22 +104,22 @@ function generateFallbackMetadata(fusionSpec: FusionSpec): GeneratedMetadata {
     };
   }
 
-  const materials = fusionSpec.materials?.join(', ') || 'premium materials';
-  const colors = fusionSpec.palette?.map((c) => c.name).join(', ') || 'mixed colors';
-  const keywords = fusionSpec.emotional_keywords?.join(', ') || '';
+  const materials = fusionSpec?.materials?.join(', ') || 'premium materials';
+  const colors = fusionSpec?.palette?.map((c) => c?.name).join(', ') || 'mixed colors';
+  const keywords = fusionSpec?.emotional_keywords?.join(', ') || '';
 
   // Generate a simple title
-  const title = `${fusionSpec.silhouette || 'Design'} in ${fusionSpec.palette?.[0]?.name || 'Mixed Colors'}`;
+  const title = `${fusionSpec?.silhouette || 'Design'} in ${fusionSpec?.palette?.[0]?.name || 'Mixed Colors'}`;
 
   // Generate a simple description
-  const description = fusionSpec.fusion_concept || `A ${(fusionSpec.silhouette || 'unique').toLowerCase()} design crafted with ${materials}.`;
+  const description = fusionSpec?.fusion_concept || `A ${(fusionSpec?.silhouette || 'unique').toLowerCase()} design crafted with ${materials}.`;
 
   // Generate tags from fusion spec
   const tags = [
-    fusionSpec.silhouette,
-    ...(fusionSpec.materials || []).slice(0, 3),
-    ...(fusionSpec.palette || []).slice(0, 2).map((c) => c.name),
-    ...(fusionSpec.emotional_keywords || []).slice(0, 3),
+    fusionSpec?.silhouette,
+    ...(fusionSpec?.materials || []).slice(0, 3),
+    ...(fusionSpec?.palette || []).slice(0, 2).map((c) => c?.name).filter(Boolean),
+    ...(fusionSpec?.emotional_keywords || []).slice(0, 3),
   ].filter(Boolean);
 
   return {

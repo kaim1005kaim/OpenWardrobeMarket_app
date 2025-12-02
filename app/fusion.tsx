@@ -179,6 +179,7 @@ export default function FusionScreen() {
         imageUrl: fusionState.generatedImageUrl,
         generationId: fusionState.generationId,
         fusionSpec: JSON.stringify(fusionState.fusionSpec),
+        quadtychUrls: fusionState.quadtychUrls ? JSON.stringify(fusionState.quadtychUrls) : undefined,
       },
     });
   };
