@@ -73,7 +73,7 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingBottom: 24 }}
     >
-      <View style={{ paddingHorizontal: 16, paddingTop: 24 }}>
+      <View style={{ paddingHorizontal: 24, paddingTop: 24 }}>
         {/* v4.0: Quadtych View Mode Selector (MAIN vs SPEC MODE) */}
         {hasQuadtych && (
           <Animated.View
@@ -275,6 +275,7 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
           style={{
             opacity: fadeAnim,
             transform: [{ scale: scaleAnim }],
+            alignItems: 'center',
           }}
         >
           <View style={styles.imageContainer}>
@@ -522,7 +523,8 @@ export function FusionResultView({ imageUrl, fusionSpec, triptychUrls, quadtychU
 
 const styles = StyleSheet.create({
   imageContainer: {
-    width: '100%',
+    width: '90%',
+    maxWidth: 340,
     borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#F5F5F3',
