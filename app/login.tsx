@@ -16,6 +16,7 @@ import { Stack, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 
 type PageMode = 'login' | 'signup';
 type AuthMode = 'password' | 'magic-link';
@@ -38,6 +39,72 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
     }
   }, [user, loading, router]);
+
+  // Handle OAuth deep link redirects
+  const handleDeepLink = async (event: { url: string }) => {
+    const url = event.url;
+    console.log('Deep link received:', url);
+
+    // Check if this is an OAuth callback
+    if (url.includes('#access_token=') || url.includes('?access_token=')) {
+      try {
+        setIsLoading(true);
+        console.log('Processing OAuth callback...');
+
+        // Parse URL fragments
+        const params = new URLSearchParams(url.split('#')[1] || url.split('?')[1]);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+
+        console.log('Access token present:', !!accessToken);
+
+        if (accessToken && refreshToken) {
+          // Set session with tokens
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (error) throw error;
+
+          if (data.session) {
+            console.log('Session established:', data.session.user.email);
+            Alert.alert('ログイン成功', 'Googleアカウントでログインしました', [
+              {
+                text: 'OK',
+                onPress: () => router.replace('/(tabs)'),
+              },
+            ]);
+          }
+        } else {
+          throw new Error('トークンが見つかりませんでした');
+        }
+      } catch (error: any) {
+        console.error('OAuth callback error:', error);
+        console.error('Error details:', JSON.stringify(error));
+        Alert.alert('ログインエラー', error.message || 'ログインに失敗しました');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+
+    // Add deep link listener
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Check if app was opened with a deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
 
   const handleEmailLogin = async () => {
     if (!email || !password) {
@@ -134,17 +201,45 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      // Use OAuth flow for Google Sign-In (works in both Expo Go and Development Build)
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('Starting Google login...');
+
+      // Create OAuth URL with redirect
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectTo,
+          redirectTo: 'owm://',
+          skipBrowserRedirect: true,
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase OAuth error:', error);
+        throw error;
+      }
+
+      if (data?.url) {
+        console.log('Opening OAuth URL:', data.url);
+
+        // Open browser for OAuth - this will use ASWebAuthenticationSession
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          'owm://'
+        );
+
+        console.log('WebBrowser result:', JSON.stringify(result));
+
+        if (result.type === 'success' && result.url) {
+          console.log('Success URL received:', result.url);
+          // Handle the redirect URL
+          await handleDeepLink({ url: result.url });
+        } else if (result.type === 'cancel') {
+          console.log('User cancelled OAuth');
+          Alert.alert('キャンセル', 'ログインがキャンセルされました');
+        }
+      }
     } catch (error: any) {
       console.error('Google login error:', error);
+      console.error('Error stack:', error.stack);
       Alert.alert('Googleログインエラー', error.message || 'ログインに失敗しました');
     } finally {
       setIsLoading(false);

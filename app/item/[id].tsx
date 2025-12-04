@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { apiClient } from '@/lib/api-client';
+import { supabase } from '@/lib/supabase';
 import { PublishedItem } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { SimilarItemsSection } from '@/components/mobile/SimilarItemsSection';
@@ -34,6 +35,11 @@ export default function ItemDetailScreen() {
   // Similar items state
   const [similarItems, setSimilarItems] = useState<any[]>([]);
   const [similarLoading, setSimilarLoading] = useState(false);
+
+  // Like state
+  const [isLiked, setIsLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [likeLoading, setLikeLoading] = useState(false);
 
   // Check if the current user owns this item
   const isOwnItem = item && user && item.user_id === user.id;
@@ -57,44 +63,145 @@ export default function ItemDetailScreen() {
   useEffect(() => {
     if (item?.id) {
       fetchSimilarItems();
+      checkIfLiked();
     }
-  }, [item?.id]);
+  }, [item?.id, user]);
+
+  const checkIfLiked = async () => {
+    if (!item?.id || !user?.id) {
+      setIsLiked(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('collections')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('item_id', item.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        setIsLiked(true);
+      } else {
+        setIsLiked(false);
+      }
+    } catch (error) {
+      console.error('[item-detail] Failed to check like status:', error);
+      setIsLiked(false);
+    }
+  };
+
+  const toggleLike = async () => {
+    if (!user?.id || !item?.id || likeLoading) return;
+
+    const wasLiked = isLiked;
+    const previousCount = likeCount;
+    const API_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://open-wardrobe-market.com';
+    const url = `${API_URL}/api/collections/${item.id}`;
+
+    console.log('[item-detail] Toggling like (optimistic):', { itemId: item.id, isLiked: wasLiked, url });
+
+    // Optimistic UI update - instant feedback
+    setIsLiked(!wasLiked);
+    setLikeCount(wasLiked ? previousCount - 1 : previousCount + 1);
+    setLikeLoading(true);
+
+    try {
+      const response = await fetch(url, {
+        method: wasLiked ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[item-detail] Failed to toggle like, reverting:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+          itemId: item.id,
+        });
+
+        // Revert optimistic update on error
+        setIsLiked(wasLiked);
+        setLikeCount(previousCount);
+        return;
+      }
+
+      const data = await response.json();
+      // Update with actual server response
+      setLikeCount(data.likes || (wasLiked ? previousCount - 1 : previousCount + 1));
+      console.log('[item-detail] Successfully toggled like:', { itemId: item.id, isLiked: !wasLiked });
+    } catch (error) {
+      console.error('[item-detail] Failed to toggle like, reverting:', error);
+
+      // Revert optimistic update on error
+      setIsLiked(wasLiked);
+      setLikeCount(previousCount);
+    } finally {
+      setLikeLoading(false);
+    }
+  };
 
   const fetchItemDetail = async () => {
     try {
       setLoading(true);
+      console.log('[item-detail] Fetching item:', id);
 
-      // For now, we'll fetch from the showcase endpoint and find the item by ID
-      // In production, you would have a dedicated /api/items/:id endpoint
-      const showcaseResponse = await apiClient.get<{ items: any[] }>('/api/showcase?limit=100');
-      const catalogResponse = await apiClient.get<{ images: any[] }>('/api/catalog');
+      // Try to fetch the specific item directly from Supabase first
+      try {
+        const { data: directItem, error: directError } = await supabase
+          .from('published_items')
+          .select('*')
+          .eq('id', id)
+          .single();
 
-      // Search in both showcase and catalog
-      let foundItem = showcaseResponse.items?.find((i: any) => i.id === id);
-
-      if (!foundItem) {
-        // Check catalog
-        const catalogItem = catalogResponse.images?.find((i: any) => i.id === id);
-        if (catalogItem) {
-          // Convert catalog item to PublishedItem format
-          foundItem = {
-            id: catalogItem.id,
-            user_id: '',
-            title: catalogItem.title,
-            category: 'FUSION',
-            image_url: catalogItem.src,
-            thumbnail_url: catalogItem.src,
+        if (directItem && !directError) {
+          console.log('[item-detail] Found directly in published_items:', directItem.title);
+          const foundItem = {
+            id: directItem.id,
+            user_id: directItem.user_id || '',
+            title: directItem.title || 'Untitled Design',
+            category: directItem.category || 'FUSION',
+            image_url: directItem.original_url || directItem.poster_url || directItem.image_url,
+            thumbnail_url: directItem.original_url || directItem.poster_url || directItem.image_url,
+            quadtych_urls: directItem.quadtych_urls || directItem.metadata?.quadtych_urls,
             metadata: {
+              ...directItem.metadata,
+              quadtych_urls: directItem.quadtych_urls || directItem.metadata?.quadtych_urls,
+              fusion_spec: directItem.fusion_spec,
+              description: directItem.description || directItem.fusion_spec?.fusion_concept,
               design_tokens: {
-                tags: catalogItem.tags || [],
+                tags: directItem.tags || directItem.auto_tags || directItem.metadata?.design_tokens?.tags || [],
               },
             },
-            created_at: catalogItem.createdAt,
-            updated_at: catalogItem.createdAt,
-            is_public: true,
+            created_at: directItem.created_at,
+            updated_at: directItem.updated_at,
+            is_public: directItem.is_public ?? true,
           };
+          setItem(foundItem);
+          setLikeCount(directItem.likes || 0);
+          return;
         }
-      } else {
+      } catch (directError) {
+        console.log('[item-detail] Direct fetch failed, trying API endpoints:', directError);
+      }
+
+      // Fallback: Fetch from API endpoints
+      const [showcaseResponse, catalogResponse] = await Promise.all([
+        apiClient.get<{ items: any[]; success?: boolean }>('/api/showcase?limit=100').catch(() => ({ items: [], success: false })),
+        apiClient.get<{ images: any[] }>('/api/catalog').catch(() => ({ images: [] })),
+      ]);
+
+      console.log('[item-detail] Showcase items:', showcaseResponse.items?.length || 0);
+      console.log('[item-detail] Catalog images:', catalogResponse.images?.length || 0);
+
+      // Search in showcase first
+      let foundItem = showcaseResponse.items?.find((i: any) => i.id === id);
+
+      if (foundItem) {
+        console.log('[item-detail] Found in showcase:', foundItem.title);
         // Convert showcase item to standardized format
         foundItem = {
           id: foundItem.id,
@@ -117,6 +224,31 @@ export default function ItemDetailScreen() {
           updated_at: foundItem.updated_at,
           is_public: true,
         };
+      } else {
+        // Check catalog
+        const catalogItem = catalogResponse.images?.find((i: any) => i.id === id);
+        if (catalogItem) {
+          console.log('[item-detail] Found in catalog:', catalogItem.title);
+          // Convert catalog item to PublishedItem format
+          foundItem = {
+            id: catalogItem.id,
+            user_id: '',
+            title: catalogItem.title || 'Catalog Design',
+            category: 'FUSION',
+            image_url: catalogItem.src,
+            thumbnail_url: catalogItem.src,
+            metadata: {
+              design_tokens: {
+                tags: catalogItem.tags || [],
+              },
+            },
+            created_at: catalogItem.createdAt,
+            updated_at: catalogItem.createdAt,
+            is_public: true,
+          };
+        } else {
+          console.error('[item-detail] Item not found in showcase or catalog. ID:', id);
+        }
       }
 
       setItem(foundItem || null);
@@ -141,21 +273,23 @@ export default function ItemDetailScreen() {
       const R2_PUBLIC_BASE_URL = 'https://assets.open-wardrobe-market.com';
 
       // Convert to standardized format with proper image URLs
-      const formattedItems = items.map((item: any) => {
-        // Build image URL from image_id if original_url/poster_url not available
-        const imageUrl = item.original_url || item.poster_url || item.image_url ||
-          (item.image_id ? `${R2_PUBLIC_BASE_URL}/${item.image_id}` : '');
+      const formattedItems = items
+        .map((item: any) => {
+          // Build image URL from image_id if original_url/poster_url not available
+          const imageUrl = item.original_url || item.poster_url || item.image_url ||
+            (item.image_id ? `${R2_PUBLIC_BASE_URL}/${item.image_id}` : '');
 
-        return {
-          id: item.id,
-          title: item.title || 'Untitled Design',
-          image_url: imageUrl,
-          thumbnail_url: imageUrl,
-          tags: item.tags || item.auto_tags || item.metadata?.design_tokens?.tags || [],
-          category: item.category,
-          metadata: item.metadata,
-        };
-      });
+          return {
+            id: item.id,
+            title: item.title || 'Untitled Design',
+            image_url: imageUrl,
+            thumbnail_url: imageUrl,
+            tags: item.tags || item.auto_tags || item.metadata?.design_tokens?.tags || [],
+            category: item.category,
+            metadata: item.metadata,
+          };
+        })
+        .filter((item) => item.image_url); // Filter out items without valid image URLs
 
       console.log('[item-detail] Formatted similar items:', formattedItems.length, 'items');
       console.log('[item-detail] First item:', formattedItems[0] ? JSON.stringify(formattedItems[0]).substring(0, 300) : 'none');
@@ -284,8 +418,27 @@ export default function ItemDetailScreen() {
 
         {/* Content Section */}
         <View style={styles.contentSection}>
-          {/* Title */}
-          <Text style={styles.title}>{item.title || 'Untitled Design'}</Text>
+          {/* Title with Like Button */}
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>{item.title || 'Untitled Design'}</Text>
+            {!isOwnItem && user && (
+              <TouchableOpacity
+                style={styles.likeIconButton}
+                onPress={toggleLike}
+                disabled={likeLoading}
+                activeOpacity={0.7}
+              >
+                <FontAwesome
+                  name={isLiked ? "heart" : "heart-o"}
+                  size={20}
+                  color="#FF4444"
+                />
+                {likeCount > 0 && (
+                  <Text style={styles.likeCountText}>{likeCount}</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* Tags */}
           {item.metadata?.design_tokens?.tags && (
@@ -380,11 +533,6 @@ export default function ItemDetailScreen() {
                 <Text style={styles.purchaseButtonText}>PURCHASE</Text>
               </TouchableOpacity>
             )}
-
-            <TouchableOpacity style={styles.favoriteButton} activeOpacity={0.8}>
-              <FontAwesome name="heart-o" size={18} color="#2D7A4F" />
-              <Text style={styles.favoriteButtonText}>FAVORITE</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Similar Items Section */}
@@ -498,12 +646,34 @@ const styles = StyleSheet.create({
   contentSection: {
     padding: 24,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   title: {
     fontFamily: 'Trajan',
     fontSize: 20,
     letterSpacing: 2,
     color: '#1A1A1A',
-    marginBottom: 16,
+    flex: 1,
+    marginRight: 12,
+  },
+  likeIconButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'transparent',
+    marginTop: -8,
+  },
+  likeCountText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginTop: 2,
   },
   tagsContainer: {
     flexDirection: 'row',
@@ -592,6 +762,7 @@ const styles = StyleSheet.create({
   },
   actionsSection: {
     gap: 12,
+    marginBottom: 48,
   },
   editButton: {
     flexDirection: 'row',
@@ -633,23 +804,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 2,
     color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  favoriteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingVertical: 16,
-    backgroundColor: 'transparent',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#2D7A4F',
-  },
-  favoriteButtonText: {
-    fontSize: 14,
-    letterSpacing: 2,
-    color: '#2D7A4F',
     fontWeight: '600',
   },
 });

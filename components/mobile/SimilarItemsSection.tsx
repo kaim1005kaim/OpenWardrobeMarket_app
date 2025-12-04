@@ -67,7 +67,7 @@ export function SimilarItemsSection({ items, loading }: SimilarItemsSectionProps
       >
         {items.map((item, index) => (
           <TouchableOpacity
-            key={`${item.id}-${index}`}
+            key={`similar-${item.id}-${index}`}
             style={styles.card}
             activeOpacity={0.9}
             onPress={() => {

@@ -16,6 +16,15 @@
     "production": {
       "autoIncrement": true,
       "node": "20.19.4",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://etvmigcsvrvetemyeiez.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0dm1pZ2NzdnJ2ZXRlbXllaWV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzMTcxMjAsImV4cCI6MjA3MTg5MzEyMH0.hlH_QOl8F7HWH8p0SnLQdtwxs8w1JN8cqg8kvGFHw2Y",
+        "EXPO_PUBLIC_API_BASE_URL": "https://open-wardrobe-market.com",
+        "EXPO_PUBLIC_R2_PUBLIC_BASE_URL": "https://assets.open-wardrobe-market.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "623835591545-up82mlqpduos3ogl8qv8004m23tp1srm.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_AI_API_KEY": "AIzaSyA-wX9oFDbhp0TrJGMLm5WqOtXDoPhOs88",
+        "EXPO_PUBLIC_FUSION_MODE": "vercel"
+      },
       "android": {
         "buildType": "apk"
       }

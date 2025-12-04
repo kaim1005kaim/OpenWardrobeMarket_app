@@ -7,15 +7,16 @@
     "icon": "./assets/images/icon.png",
     "scheme": "owm",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F4F4F0"
+      "backgroundColor": "#274042"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.openwardrobemarket.app",
+      "buildNumber": "1",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -24,13 +25,18 @@
         "NSCameraUsageDescription": "This app needs access to your camera to take photos for FUSION.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["owm", "com.openwardrobemarket.app"]
+          }
+        ]
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#F4F4F0"
+        "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
+        "backgroundImage": "./assets/images/adaptive-icon-background.png"
       },
       "package": "com.openwardrobemarket.app",
       "permissions": [

@@ -16,178 +16,278 @@ import { MenuOverlay } from '@/components/mobile/MenuOverlay';
 import { SearchModal } from '@/components/mobile/SearchModal';
 import { GalleryCard } from '@/components/mobile/GalleryCard';
 import { apiClient } from '@/lib/api-client';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 // Memoized card component for better performance
 const MemoizedGalleryCard = memo(GalleryCard);
 
 export default function ShowcaseScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [filteredItems, setFilteredItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [offset, setOffset] = useState(0);
   const [menuVisible, setMenuVisible] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
+  const [processingLikes, setProcessingLikes] = useState<Set<string>>(new Set());
 
-  const fetchItems = async () => {
+  const ITEMS_PER_PAGE = 20;
+
+  const fetchItems = async (loadMore = false) => {
+    if (loadMore && (loadingMore || !hasMore)) return;
+
     try {
-      // Fetch both catalog and published items in parallel
-      const [catalogResponse, showcaseResponse] = await Promise.all([
-        apiClient.get<{ images: any[] }>('/api/catalog')
-          .catch((error) => {
-            console.warn('[showcase] /api/catalog failed:', error);
-            return { images: [] };
-          }),
-        apiClient.get<{ success: boolean; items: any[]; total: number }>('/api/showcase?limit=100')
-          .catch((error) => {
-            console.warn('[showcase] /api/showcase failed:', error);
-            return { success: false, items: [], total: 0 };
-          })
+      if (loadMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        setOffset(0);
+        setHasMore(true);
+      }
+
+      const currentOffset = loadMore ? offset : 0;
+
+      // Temporary: Use old /api/showcase + /api/recommend until showcase-feed is deployed
+      const [showcaseRes, recommendRes] = await Promise.all([
+        apiClient.get<{ success: boolean; items: any[] }>('/api/showcase').catch(() => ({ success: false, items: [] })),
+        apiClient.get<{ success: boolean; recommendations: any[] }>('/api/recommend').catch(() => ({ success: false, recommendations: [] })),
       ]);
 
-      const catalogItems = (catalogResponse.images || []).map((item: any) => {
-        // Catalog items should already have 'src' field, but ensure it exists
-        const imageUrl = item.src || item.image_url || item.url;
+      // Filter and normalize catalog items (same filtering as published items)
+      const catalogItems = (showcaseRes.items || []).filter((item: any) => {
+        const imageUrl = item.poster_url || item.original_url || item.image_url;
         if (!imageUrl) {
-          console.warn('[showcase] Catalog item missing image URL:', {
-            id: item.id,
-            title: item.title,
-            availableFields: Object.keys(item),
-          });
-        }
-        return {
-          ...item,
-          src: imageUrl,
-          isUserGenerated: false,
-        };
-      }).filter((item) => item.src); // Filter out catalog items without images
-
-      // Map published items from showcase API
-      const publishedItems = (showcaseResponse.items || []).map((item: any) => {
-        // Try multiple fields to get image URL
-        // Priority: original_url > poster_url > quadtych_urls.main > image_url
-        let imageUrl = item.original_url || item.poster_url || item.image_url;
-
-        // Check if quadtych_urls exists (both in metadata and at top level)
-        const quadtychUrls = item.metadata?.quadtych_urls || item.quadtych_urls;
-        if (!imageUrl && quadtychUrls?.main) {
-          imageUrl = quadtychUrls.main;
-        }
-
-        // Also check if variants exist and use first variant's image
-        if (!imageUrl && item.metadata?.variants && item.metadata.variants.length > 0) {
-          const firstVariant = item.metadata.variants[0];
-          imageUrl = firstVariant.url || firstVariant.image_url;
-        }
-
-        if (!imageUrl) {
-          console.warn('[showcase] Item missing image URL:', {
-            id: item.id,
-            title: item.title,
-            availableFields: Object.keys(item),
-          });
-        }
-        return {
-          id: item.id,
-          src: imageUrl,
-          title: item.title || 'Untitled Design',
-          tags: item.tags || [],
-          colors: item.colors || [],
-          price: item.price,
-          likes: item.likes || 0,
-          isUserGenerated: true,
-          createdAt: item.created_at,
-          userName: item.user_name,
-          userAvatar: item.user_avatar,
-          metadata: item.metadata || item.fusion_spec,
-        };
-      }).filter((item) => {
-        // Filter out items without images
-        if (!item.src) return false;
-
-        // Filter out R2 direct URLs (unauthorized access)
-        // These URLs start with https://pub-*.r2.dev
-        if (item.src.includes('.r2.dev/')) {
-          console.log('[showcase] Filtering out R2 direct URL:', item.title, item.src);
+          console.log('[showcase] Filtering out catalog item without image:', item.title);
           return false;
         }
-
+        if (imageUrl.includes('.r2.dev/')) {
+          console.log('[showcase] Filtering out catalog R2 direct URL:', item.title);
+          return false;
+        }
         return true;
-      });
+      }).map((item: any) => ({
+        ...item,
+        src: item.poster_url || item.original_url || item.image_url,
+        userName: 'OpenDesign', // Set OpenDesign for all catalog items
+      }));
 
-      console.log('[showcase] Fetched items:', {
-        catalog: catalogItems.length,
-        published: publishedItems.length,
-        publishedWithImages: publishedItems.filter(i => i.src).length,
-      });
+      // Filter out R2 direct URLs (unauthorized access) and items without images
+      const publishedItems = (recommendRes.recommendations || []).filter((item: any) => {
+        const imageUrl = item.src || item.image_url || item.poster_url;
+        if (!imageUrl) {
+          console.log('[showcase] Filtering out item without image:', item.title);
+          return false;
+        }
+        if (imageUrl.includes('.r2.dev/')) {
+          console.log('[showcase] Filtering out R2 direct URL:', item.title);
+          return false;
+        }
+        return true;
+      }).map((item: any) => ({
+        ...item,
+        src: item.src || item.image_url || item.poster_url,
+      }));
 
-      // Sort published items by created_at (newest first)
-      const sortedPublished = [...publishedItems].sort((a, b) => {
+      // Sort published by date (newest first), shuffle catalog
+      const sortedPublished = [...publishedItems].sort((a: any, b: any) => {
         const dateA = new Date(a.createdAt || 0).getTime();
         const dateB = new Date(b.createdAt || 0).getTime();
-        return dateB - dateA; // Descending order (newest first)
+        return dateB - dateA;
       });
 
-      // Catalog items can stay in original order or be shuffled
-      const shuffledCatalog = shuffleArray([...catalogItems]);
+      // Simple shuffle for catalog
+      const shuffledCatalog = [...catalogItems].sort(() => Math.random() - 0.5);
 
-      // Merge with published items taking priority (70% published, 30% catalog ratio)
-      // Published items will maintain their chronological order
-      const allItems = interleaveArrays(sortedPublished, shuffledCatalog, 0.7);
+      // Interleave: 70% published, 30% catalog
+      const merged: any[] = [];
+      let pubIndex = 0;
+      let catIndex = 0;
 
-      console.log('[showcase] Total items after merge:', allItems.length);
-      console.log('[showcase] First 5 items:', allItems.slice(0, 5).map(i => ({ title: i.title, createdAt: i.createdAt, isUserGenerated: i.isUserGenerated })));
+      while (pubIndex < sortedPublished.length || catIndex < shuffledCatalog.length) {
+        // Add published items (70% probability)
+        if (pubIndex < sortedPublished.length && (Math.random() < 0.7 || catIndex >= shuffledCatalog.length)) {
+          merged.push(sortedPublished[pubIndex++]);
+        }
+        // Add catalog items (30% probability)
+        else if (catIndex < shuffledCatalog.length) {
+          merged.push(shuffledCatalog[catIndex++]);
+        }
+      }
 
-      setItems(allItems);
-      setFilteredItems(allItems);
+      // Apply pagination client-side
+      const newItems = merged.slice(currentOffset, currentOffset + ITEMS_PER_PAGE);
+
+      console.log('[showcase] Fetched and merged (client-side):', {
+        offset: currentOffset,
+        received: newItems.length,
+        total: merged.length,
+        catalog: catalogItems.length,
+        published: publishedItems.length,
+      });
+
+      if (loadMore) {
+        setItems((prev) => [...prev, ...newItems]);
+        setFilteredItems((prev) => [...prev, ...newItems]);
+        setOffset(currentOffset + newItems.length);
+      } else {
+        setItems(newItems);
+        setFilteredItems(newItems);
+        setOffset(newItems.length);
+      }
+
+      // Check if there are more items to load
+      setHasMore(newItems.length === ITEMS_PER_PAGE);
     } catch (error) {
       console.error('[showcase] Failed to fetch items:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
       setRefreshing(false);
     }
   };
 
-  // Fisher-Yates shuffle algorithm
-  const shuffleArray = <T,>(array: T[]): T[] => {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  };
-
-  // Interleave two arrays with priority ratio
-  const interleaveArrays = <T,>(primary: T[], secondary: T[], primaryRatio: number): T[] => {
-    const result: T[] = [];
-    let primaryIndex = 0;
-    let secondaryIndex = 0;
-
-    while (primaryIndex < primary.length || secondaryIndex < secondary.length) {
-      // Add items from primary array based on ratio
-      const primaryCount = Math.random() < primaryRatio ? 2 : 1;
-      for (let i = 0; i < primaryCount && primaryIndex < primary.length; i++) {
-        result.push(primary[primaryIndex++]);
-      }
-
-      // Add one item from secondary array
-      if (secondaryIndex < secondary.length) {
-        result.push(secondary[secondaryIndex++]);
-      }
-    }
-
-    return result;
-  };
 
   useEffect(() => {
     fetchItems();
-  }, []);
+    if (user?.id) {
+      fetchLikedItems();
+    }
+  }, [user?.id]);
+
+  const fetchLikedItems = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('collections')
+        .select('item_id')
+        .eq('user_id', user.id);
+
+      if (!error && data) {
+        setLikedItems(new Set(data.map(item => item.item_id)));
+      }
+    } catch (error) {
+      console.error('[showcase] Failed to fetch liked items:', error);
+    }
+  };
+
+  const toggleLike = async (itemId: string) => {
+    if (!user?.id) {
+      console.log('[showcase] User not logged in');
+      return;
+    }
+
+    // Prevent multiple simultaneous likes on same item
+    if (processingLikes.has(itemId)) {
+      console.log('[showcase] Already processing like for:', itemId);
+      return;
+    }
+
+    const isLiked = likedItems.has(itemId);
+    const API_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://open-wardrobe-market.com';
+    const url = `${API_URL}/api/collections/${itemId}`;
+
+    console.log('[showcase] Toggling like (optimistic):', { itemId, isLiked, url });
+
+    // Mark as processing
+    setProcessingLikes(prev => new Set(prev).add(itemId));
+
+    // Optimistic UI update - instant feedback
+    const newLikedItems = new Set(likedItems);
+    if (isLiked) {
+      newLikedItems.delete(itemId);
+    } else {
+      newLikedItems.add(itemId);
+    }
+    setLikedItems(newLikedItems);
+
+    // Update items array optimistically
+    const updateItems = (items: any[]) => items.map(item =>
+      item.id === itemId
+        ? { ...item, likes: (item.likes || 0) + (isLiked ? -1 : 1) }
+        : item
+    );
+    setItems(prevItems => updateItems(prevItems));
+    setFilteredItems(prevItems => updateItems(prevItems));
+
+    try {
+      const response = await fetch(url, {
+        method: isLiked ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[showcase] Failed to toggle like, reverting:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+          itemId,
+        });
+
+        // Revert optimistic update on error
+        const revertedLikedItems = new Set(likedItems);
+        if (!isLiked) {
+          revertedLikedItems.delete(itemId);
+        } else {
+          revertedLikedItems.add(itemId);
+        }
+        setLikedItems(revertedLikedItems);
+
+        const revertItems = (items: any[]) => items.map(item =>
+          item.id === itemId
+            ? { ...item, likes: (item.likes || 0) + (isLiked ? 1 : -1) }
+            : item
+        );
+        setItems(prevItems => revertItems(prevItems));
+        setFilteredItems(prevItems => revertItems(prevItems));
+        return;
+      }
+
+      console.log('[showcase] Successfully toggled like:', { itemId, isLiked: !isLiked });
+    } catch (error) {
+      console.error('[showcase] Failed to toggle like, reverting:', error);
+
+      // Revert optimistic update on error
+      const revertedLikedItems = new Set(likedItems);
+      if (!isLiked) {
+        revertedLikedItems.delete(itemId);
+      } else {
+        revertedLikedItems.add(itemId);
+      }
+      setLikedItems(revertedLikedItems);
+
+      const revertItems = (items: any[]) => items.map(item =>
+        item.id === itemId
+          ? { ...item, likes: (item.likes || 0) + (isLiked ? 1 : -1) }
+          : item
+      );
+      setItems(prevItems => revertItems(prevItems));
+      setFilteredItems(prevItems => revertItems(prevItems));
+    } finally {
+      // Remove from processing
+      setProcessingLikes(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchItems();
+    if (user?.id) {
+      fetchLikedItems();
+    }
   };
 
   const handleSearch = (query: string) => {
@@ -223,6 +323,10 @@ export default function ShowcaseScreen() {
       userName={item.userName}
       userAvatar={item.userAvatar}
       createdAt={item.createdAt}
+      likes={item.likes}
+      isLiked={likedItems.has(item.id)}
+      showLikeButton={!!user}
+      onLikePress={() => toggleLike(item.id)}
       metadata={{
         silhouette: item.metadata?.silhouette || item.metadata?.garment_style,
         materials: item.metadata?.materials || item.metadata?.fabrics,
@@ -230,7 +334,7 @@ export default function ShowcaseScreen() {
       }}
       onPress={() => router.push(`/item/${item.id}`)}
     />
-  ), [router]);
+  ), [router, likedItems, user, toggleLike]);
 
   const keyExtractor = useCallback((item: any) => item.id, []);
 
@@ -275,8 +379,17 @@ export default function ShowcaseScreen() {
           updateCellsBatchingPeriod={50}
           initialNumToRender={10}
           windowSize={5}
+          onEndReached={() => fetchItems(true)}
+          onEndReachedThreshold={0.5}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListFooterComponent={
+            (loadingMore && !loading) ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#1a3d3d" />
+              </View>
+            ) : null
           }
           ListHeaderComponent={
             <>

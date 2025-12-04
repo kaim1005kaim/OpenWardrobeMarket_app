@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -37,18 +38,38 @@ export default function ArchiveScreen() {
     }
   }, [user, activeTab]);
 
+  // Fetch tab counts on initial mount and when user changes
+  useEffect(() => {
+    if (user) {
+      fetchTabCounts();
+    }
+  }, [user]);
+
   const fetchGenerations = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
 
-      // Fetch all types to get accurate counts
-      const response = await apiClient.get<{ success: boolean; images: UserGeneration[]; total: number }>(
-        `/api/user-gallery?user_id=${user.id}&type=all`
-      );
+      let response: { success?: boolean; images?: UserGeneration[]; items?: UserGeneration[]; total: number };
 
-      console.log('[archive] Fetched all items:', response.images?.length || 0);
+      // Use different API endpoints based on tab
+      if (activeTab === 'collections') {
+        // Use /api/saved for collections
+        response = await apiClient.get<{ success: boolean; items: UserGeneration[]; total: number }>(
+          `/api/saved?user_id=${user.id}`
+        );
+        // Normalize: /api/saved returns 'items', not 'images'
+        response.images = response.items;
+      } else {
+        // Use /api/user-gallery for published and drafts
+        const apiType = activeTab === 'published' ? 'published' : 'drafts';
+        response = await apiClient.get<{ success: boolean; images: UserGeneration[]; total: number }>(
+          `/api/user-gallery?user_id=${user.id}&type=${apiType}`
+        );
+      }
+
+      console.log(`[archive] Fetched ${activeTab} items:`, response.images?.length || 0);
 
       // Normalize the data format (user-gallery uses 'src', we use 'image_url')
       const normalized = (response.images || []).map((item) => ({
@@ -57,21 +78,10 @@ export default function ArchiveScreen() {
         is_public: item.is_published || item.type === 'published',
       }));
 
-      // Store all generations for count
-      setAllGenerations(normalized);
+      setGenerations(normalized);
 
-      // Filter for current tab
-      let filtered = normalized;
-      if (activeTab === 'published') {
-        filtered = normalized.filter((g) => g.type === 'published');
-      } else if (activeTab === 'drafts') {
-        filtered = normalized.filter((g) => g.type === 'generated');
-      } else if (activeTab === 'collections') {
-        filtered = normalized.filter((g) => g.type === 'saved');
-      }
-
-      console.log('[archive] Filtered for', activeTab, ':', filtered.length, 'items');
-      setGenerations(filtered);
+      // For tab counts, we'll fetch them separately on mount only
+      // (avoiding unnecessary fetches on every tab switch)
     } catch (error) {
       console.error('[archive] Failed to fetch generations:', error);
     } finally {
@@ -80,9 +90,38 @@ export default function ArchiveScreen() {
     }
   };
 
+  // Fetch tab counts only once on mount
+  const fetchTabCounts = async () => {
+    if (!user) return;
+
+    try {
+      const [publishedRes, draftsRes, collectionsRes] = await Promise.all([
+        apiClient.get<{ total: number }>(`/api/user-gallery?user_id=${user.id}&type=published&limit=0`),
+        apiClient.get<{ total: number }>(`/api/user-gallery?user_id=${user.id}&type=drafts&limit=0`),
+        apiClient.get<{ total: number }>(`/api/saved?user_id=${user.id}&limit=0`), // Use /api/saved for collections
+      ]);
+
+      console.log('[archive] Tab counts:', {
+        published: publishedRes.total,
+        drafts: draftsRes.total,
+        collections: collectionsRes.total,
+      });
+
+      // Update allGenerations with counts for tab badges
+      setAllGenerations([
+        ...Array(publishedRes.total || 0).fill({ type: 'published' }),
+        ...Array(draftsRes.total || 0).fill({ type: 'generated' }),
+        ...Array(collectionsRes.total || 0).fill({ type: 'saved' }),
+      ] as any);
+    } catch (error) {
+      console.error('[archive] Failed to fetch tab counts:', error);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchGenerations();
+    fetchTabCounts();
   };
 
   return (
@@ -254,7 +293,11 @@ export default function ArchiveScreen() {
                     <Image
                       source={{ uri: gen.image_url }}
                       style={{ width: '100%', height: '100%' }}
-                      resizeMode="cover"
+                      contentFit="cover"
+                      placeholder="L6Pj42%L~q%2"
+                      transition={150}
+                      cachePolicy="memory-disk"
+                      recyclingKey={gen.id}
                     />
                   </TouchableOpacity>
                 ))}

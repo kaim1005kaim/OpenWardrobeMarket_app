@@ -705,6 +705,7 @@ function extractKeyFromUrl(url: string): string {
 
 /**
  * Upload image to R2 via /api/upload-to-r2 endpoint (server-side upload)
+ * Optimization: Compress image before uploading to reduce upload time
  */
 export async function uploadImageToR2(
   imageUri: string,
@@ -717,11 +718,27 @@ export async function uploadImageToR2(
       throw new Error('ログインが必要です');
     }
 
+    // Optimization: Compress image before uploading
+    console.log('[uploadImageToR2] Compressing image before upload...');
+    const compressedImage = await ImageManipulator.manipulateAsync(
+      imageUri,
+      [
+        { resize: { width: 2048 } }, // Max width 2048px for high quality
+      ],
+      {
+        compress: 0.7, // Good balance between quality and size
+        format: ImageManipulator.SaveFormat.JPEG,
+      }
+    );
+
+    const compressedUri = compressedImage.uri;
+    console.log('[uploadImageToR2] Image compressed, new URI:', compressedUri);
+
     // Determine content type
-    const filename = imageUri.split('/').pop() || 'image.jpg';
+    const filename = compressedUri.split('/').pop() || 'image.jpg';
     const match = /\.(\w+)$/.exec(filename);
-    const extension = match ? match[1] : 'jpg';
-    const mimeType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+    const extension = 'jpg'; // Always JPEG after compression
+    const mimeType = 'image/jpeg';
 
     // Generate key and presign URL
     const now = new Date();
@@ -749,7 +766,7 @@ export async function uploadImageToR2(
       throw new Error('Presigned upload URL is missing in response');
     }
 
-    console.log('[uploadImageToR2] Uploading to R2 with key:', key);
+    console.log('[uploadImageToR2] Uploading compressed image to R2 with key:', key);
 
     // Use FOREGROUND session when available to avoid simulator background session issues
     const sessionType = FileSystem.FileSystemSessionType?.FOREGROUND
@@ -758,7 +775,7 @@ export async function uploadImageToR2(
 
     const uploadTask = FileSystem.createUploadTask(
       uploadUrl,
-      imageUri,
+      compressedUri, // Use compressed image URI
       {
         httpMethod: 'PUT',
         uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,

@@ -14,40 +14,6 @@ class APIClient {
         'Content-Type': 'application/json',
       },
     });
-
-    // Add request interceptor to inject auth token
-    this.client.interceptors.request.use(
-      async (config) => {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session?.access_token) {
-          config.headers.Authorization = `Bearer ${session.access_token}`;
-        }
-
-        return config;
-      },
-      (error) => {
-        return Promise.reject(error);
-      }
-    );
-
-    // Add response interceptor for error handling
-    this.client.interceptors.response.use(
-      (response) => response,
-      async (error) => {
-        if (error.response?.status === 401) {
-          // Token expired or invalid, try to refresh
-          const { error: refreshError } = await supabase.auth.refreshSession();
-
-          if (refreshError) {
-            // Refresh failed, sign out user
-            await supabase.auth.signOut();
-          }
-        }
-
-        return Promise.reject(error);
-      }
-    );
   }
 
   async get<T = any>(url: string, config?: AxiosRequestConfig) {

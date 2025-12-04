@@ -17,9 +17,26 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface ReelSwiperProps {
   items: PublishedItem[];
+  likedItems?: Set<string>;
+  onLikePress?: (itemId: string) => void;
+  onLayout?: () => void;
 }
 
-export const ReelSwiper: React.FC<ReelSwiperProps> = ({ items }) => {
+export const ReelSwiper: React.FC<ReelSwiperProps> = ({
+  items,
+  likedItems = new Set(),
+  onLikePress,
+  onLayout
+}) => {
+  console.log('[ReelSwiper] Rendering with items count:', items.length);
+  if (items.length > 0) {
+    console.log('[ReelSwiper] First item:', {
+      id: items[0].id,
+      title: items[0].title,
+      image_url: items[0].image_url,
+    });
+  }
+
   const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -36,20 +53,66 @@ export const ReelSwiper: React.FC<ReelSwiperProps> = ({ items }) => {
     itemVisiblePercentThreshold: 50,
   }).current;
 
-  const renderItem = ({ item, index }: { item: PublishedItem; index: number }) => (
-    <View style={styles.reelContainer}>
-      {/* Full-screen Image - Tappable */}
-      <TouchableOpacity
-        activeOpacity={0.95}
-        onPress={() => router.push(`/item/${item.id}`)}
-        style={styles.imageContainer}
-      >
-        <Image
-          source={{ uri: item.image_url }}
-          style={styles.fullImage}
-          resizeMode="cover"
-        />
-      </TouchableOpacity>
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+
+  const renderItem = ({ item, index }: { item: PublishedItem; index: number }) => {
+    console.log('[ReelSwiper] renderItem called for:', { index, id: item.id, url: item.image_url });
+
+    const isImageLoaded = loadedImages.has(item.id);
+    const isImageFailed = failedImages.has(item.id);
+
+    // Determine background color - ONLY transparent if loaded successfully
+    // Keep #EDEBE5 for loading OR error states
+    const backgroundColor = (isImageLoaded && !isImageFailed) ? 'transparent' : '#EDEBE5';
+
+    console.log('[ReelSwiper] Item state:', {
+      id: item.id,
+      isImageLoaded,
+      isImageFailed,
+      backgroundColor
+    });
+
+    return (
+      <View style={styles.reelContainer}>
+        {/* Full-screen Image - Tappable */}
+        <TouchableOpacity
+          activeOpacity={0.95}
+          onPress={() => router.push(`/item/${item.id}`)}
+          style={[
+            styles.imageContainer,
+            { backgroundColor }
+          ]}
+        >
+          <Image
+            source={{ uri: item.image_url }}
+            style={styles.fullImage}
+            resizeMode="cover"
+            onLoad={() => {
+              console.log('[ReelSwiper] Image loaded successfully:', item.id, item.image_url);
+              requestAnimationFrame(() => {
+                setLoadedImages(prev => new Set(prev).add(item.id));
+              });
+            }}
+            onError={(error) => {
+              console.error('[ReelSwiper] Image load failed:', {
+                id: item.id,
+                url: item.image_url,
+                error
+              });
+              requestAnimationFrame(() => {
+                setFailedImages(prev => new Set(prev).add(item.id));
+              });
+            }}
+          />
+          {isImageFailed && (
+            <View style={styles.errorOverlay}>
+              <FontAwesome name="image" size={48} color="rgba(0,0,0,0.3)" />
+              <Text style={styles.errorText}>画像の読み込みに失敗しました</Text>
+              <Text style={styles.errorDebug}>ID: {item.id}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
       {/* Gradient Overlays - Using View with opacity for compatibility */}
       <View style={styles.topGradient} />
@@ -99,15 +162,34 @@ export const ReelSwiper: React.FC<ReelSwiperProps> = ({ items }) => {
             ]}
           />
         ))}
-        {items.length > 5 && (
-          <Text style={styles.dotCount}>+{items.length - 5}</Text>
-        )}
+        {items.length > 5 ? (
+          <Text style={styles.dotCount}>{`+${items.length - 5}`}</Text>
+        ) : null}
       </View>
-    </View>
-  );
+
+        {/* Floating Heart Button - Right Side */}
+        {onLikePress ? (
+          <TouchableOpacity
+            style={styles.heartButton}
+            onPress={() => onLikePress(item.id)}
+            activeOpacity={0.7}
+          >
+            <FontAwesome
+              name={likedItems.has(item.id) ? "heart" : "heart-o"}
+              size={20}
+              color={likedItems.has(item.id) ? "#FF4444" : "#FFFFFF"}
+            />
+            {(item.likes && item.likes > 0) ? (
+              <Text style={styles.likeCountText}>{String(item.likes)}</Text>
+            ) : null}
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={onLayout}>
       <FlatList
         ref={flatListRef}
         data={items}
@@ -125,6 +207,10 @@ export const ReelSwiper: React.FC<ReelSwiperProps> = ({ items }) => {
           offset: SCREEN_HEIGHT * index,
           index,
         })}
+        initialNumToRender={1}
+        maxToRenderPerBatch={2}
+        windowSize={3}
+        removeClippedSubviews={false}
       />
     </View>
   );
@@ -255,5 +341,45 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: 'rgba(255, 255, 255, 0.5)',
     marginTop: 4,
+  },
+  heartButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    zIndex: 10,
+  },
+  likeCountText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  errorOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#EDEBE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    color: 'rgba(0, 0, 0, 0.5)',
+    marginTop: 12,
+  },
+  errorDebug: {
+    fontSize: 10,
+    color: 'rgba(0, 0, 0, 0.3)',
+    marginTop: 8,
+    fontFamily: 'monospace',
   },
 });

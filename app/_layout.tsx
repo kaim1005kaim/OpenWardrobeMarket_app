@@ -8,7 +8,12 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { StudioProvider } from '@/contexts/StudioContext';
+import { SplashProvider } from '@/contexts/SplashContext';
 import { AnimatedSplashScreen } from '@/components/AnimatedSplashScreen';
+import { fetchStudioData } from '@/lib/studio-data';
+import { PublishedItem } from '@/types';
+import { Image } from 'expo-image';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -29,7 +34,8 @@ export default function RootLayout() {
     'Trajan': require('../assets/fonts/trajan-pro-regular.ttf'),
     ...FontAwesome.font,
   });
-  const [showSplash, setShowSplash] = useState(true);
+  const [dataReady, setDataReady] = useState(false);
+  const [preloadedItems, setPreloadedItems] = useState<PublishedItem[]>([]);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -42,19 +48,67 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  const handleSplashAnimationEnd = () => {
-    setShowSplash(false);
-  };
+  // Preload data for STUDIO tab during splash
+  useEffect(() => {
+    const preloadData = async () => {
+      try {
+        console.log('[Layout] Starting data preload...');
+
+        // 1. Fetch JSON data
+        const items = await fetchStudioData();
+        setPreloadedItems(items);
+        console.log(`[Layout] Data preload complete. Count: ${items.length}`);
+
+        // 2. Prefetch first image to cache (with 3 second timeout)
+        if (items.length > 0) {
+          const firstItem = items[0];
+          const imageUrl = firstItem.image_url || firstItem.thumbnail_url;
+
+          if (imageUrl) {
+            console.log('[Layout] Attempting safe prefetch:', imageUrl);
+            try {
+              // 3秒でタイムアウトするPromiseを作成
+              const prefetchTask = Image.prefetch([imageUrl]);
+              const timeoutTask = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Prefetch timeout')), 3000)
+              );
+
+              // どちらか早い方を待つ
+              await Promise.race([prefetchTask, timeoutTask]);
+              console.log('[Layout] Prefetch success');
+            } catch (e) {
+              console.warn('[Layout] Prefetch skipped (timeout or error):', e);
+              // エラーになっても dataReady は true にしてアプリを起動させる
+            }
+          }
+        }
+
+        setDataReady(true);
+      } catch (error) {
+        console.error('[Layout] Failed to preload data:', error);
+        // Even if data fails, allow transition
+        setDataReady(true);
+      }
+    };
+
+    if (loaded) {
+      preloadData();
+    }
+  }, [loaded]);
 
   if (!loaded) {
     return null;
   }
 
-  if (showSplash) {
-    return <AnimatedSplashScreen onAnimationEnd={handleSplashAnimationEnd} />;
-  }
-
-  return <RootLayoutNav />;
+  return (
+    <SplashProvider>
+      <StudioProvider initialItems={preloadedItems}>
+        <RootLayoutNav />
+        {/* Overlay splash screen on top of app */}
+        <AnimatedSplashScreen dataReady={dataReady} />
+      </StudioProvider>
+    </SplashProvider>
+  );
 }
 
 function RootLayoutNav() {

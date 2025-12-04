@@ -4,168 +4,149 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ReelSwiper } from '@/components/mobile/ReelSwiper';
 import { MenuOverlay } from '@/components/mobile/MenuOverlay';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiClient } from '@/lib/api-client';
-import { PublishedItem } from '@/types';
+import { useStudioData } from '@/contexts/StudioContext';
+import { useSplashReady } from '@/contexts/SplashContext';
+import { supabase } from '@/lib/supabase';
 
 export default function StudioScreen() {
   const { user } = useAuth();
-  const [items, setItems] = useState<PublishedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items, loading } = useStudioData();
+  const { setAppReady } = useSplashReady();
   const [menuVisible, setMenuVisible] = useState(false);
-
-  const fetchItems = async () => {
-    try {
-      // Fetch from multiple sources in parallel
-      const [catalogResponse, showcaseResponse] = await Promise.all([
-        apiClient.get<{ images: any[] }>('/api/catalog')
-          .catch((error) => {
-            console.warn('[studio] /api/catalog failed:', error);
-            return { images: [] };
-          }),
-        apiClient.get<{ success: boolean; items: any[]; total: number }>('/api/showcase?limit=50')
-          .catch((error) => {
-            console.warn('[studio] /api/showcase failed:', error);
-            return { success: false, items: [], total: 0 };
-          })
-      ]);
-
-      // Convert catalog items
-      const catalogItems: PublishedItem[] = (catalogResponse.images || [])
-        .filter((img: any) => {
-          // Filter out watercolor_blend items
-          if (img.title?.includes('watercolor_blend')) {
-            console.log('[studio] Filtering out watercolor_blend item:', img.title);
-            return false;
-          }
-          // Filter out items without image URLs
-          if (!img.src) {
-            console.warn('[studio] Catalog item missing image URL:', img.title);
-            return false;
-          }
-          // Filter out R2 direct URLs (unauthorized access)
-          if (img.src.includes('.r2.dev/')) {
-            console.log('[studio] Filtering out R2 direct URL:', img.title);
-            return false;
-          }
-          return true;
-        })
-        .map((img: any) => ({
-          id: img.id,
-          user_id: '',
-          title: img.title,
-          category: 'FUSION' as const,
-          image_url: img.src,
-          thumbnail_url: img.src,
-          metadata: img.tags ? { design_tokens: { tags: img.tags } } : undefined,
-          created_at: img.createdAt,
-          updated_at: img.createdAt,
-          is_public: true,
-        }));
-
-      // Convert published items
-      const publishedItems: PublishedItem[] = (showcaseResponse.items || [])
-        .filter((item: any) => {
-          // Filter out watercolor_blend items
-          if (item.title?.includes('watercolor_blend')) {
-            console.log('[studio] Filtering out watercolor_blend item:', item.title);
-            return false;
-          }
-
-          // Get image URL
-          const imageUrl = item.original_url || item.poster_url || item.image_url;
-
-          // Filter out items without image URLs
-          if (!imageUrl) {
-            console.warn('[studio] Published item missing image URL:', item.title);
-            return false;
-          }
-
-          // Filter out R2 direct URLs (unauthorized access)
-          if (imageUrl.includes('.r2.dev/')) {
-            console.log('[studio] Filtering out R2 direct URL:', item.title);
-            return false;
-          }
-
-          return true;
-        })
-        .map((item: any) => ({
-          id: item.id,
-          user_id: item.user_id || '',
-          title: item.title || 'Untitled Design',
-          category: 'FUSION' as const,
-          image_url: item.original_url || item.poster_url || item.image_url,
-          thumbnail_url: item.original_url || item.poster_url || item.image_url,
-          metadata: item.tags ? { design_tokens: { tags: item.tags } } : undefined,
-          created_at: item.created_at,
-          updated_at: item.created_at,
-          is_public: true,
-        }));
-
-      console.log('[studio] Fetched items:', {
-        catalog: catalogItems.length,
-        published: publishedItems.length,
-      });
-
-      // Shuffle and merge arrays
-      const shuffledPublished = shuffleArray([...publishedItems]);
-      const shuffledCatalog = shuffleArray([...catalogItems]);
-
-      // Mix with 60% published, 40% catalog ratio for variety
-      const allItems = interleaveArrays(shuffledPublished, shuffledCatalog, 0.6);
-
-      console.log('[studio] Total items after merge:', allItems.length);
-      setItems(allItems);
-    } catch (error) {
-      console.error('[studio] Failed to fetch items:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fisher-Yates shuffle algorithm
-  const shuffleArray = <T,>(array: T[]): T[] => {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  };
-
-  // Interleave two arrays with priority ratio
-  const interleaveArrays = <T,>(primary: T[], secondary: T[], primaryRatio: number): T[] => {
-    const result: T[] = [];
-    let primaryIndex = 0;
-    let secondaryIndex = 0;
-
-    while (primaryIndex < primary.length || secondaryIndex < secondary.length) {
-      // Add items from primary array based on ratio
-      const primaryCount = Math.random() < primaryRatio ? 2 : 1;
-      for (let i = 0; i < primaryCount && primaryIndex < primary.length; i++) {
-        result.push(primary[primaryIndex++]);
-      }
-
-      // Add one item from secondary array
-      if (secondaryIndex < secondary.length) {
-        result.push(secondary[secondaryIndex++]);
-      }
-    }
-
-    return result;
-  };
+  const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
+  const [processingLikes, setProcessingLikes] = useState<Set<string>>(new Set());
+  const [isContentReady, setIsContentReady] = useState(false);
 
   useEffect(() => {
-    fetchItems();
-  }, []);
+    if (user?.id) {
+      fetchLikedItems();
+    }
+  }, [user?.id]);
 
-  if (loading) {
-    return <LoadingSpinner fullScreen message="Loading designs..." />;
+  // Signal app ready when items are loaded
+  useEffect(() => {
+    if (items.length > 0 && !loading) {
+      console.log('[StudioScreen] Items loaded, signaling app ready');
+      setAppReady();
+    }
+  }, [items.length, loading, setAppReady]);
+
+  const fetchLikedItems = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('collections')
+        .select('item_id')
+        .eq('user_id', user.id);
+
+      if (!error && data) {
+        setLikedItems(new Set(data.map(item => item.item_id)));
+      }
+    } catch (error) {
+      console.error('[studio] Failed to fetch liked items:', error);
+    }
+  };
+
+  const toggleLike = async (itemId: string) => {
+    if (!user?.id) {
+      console.log('[studio] User not logged in');
+      return;
+    }
+
+    // Prevent multiple simultaneous likes on same item
+    if (processingLikes.has(itemId)) {
+      console.log('[studio] Already processing like for:', itemId);
+      return;
+    }
+
+    const isLiked = likedItems.has(itemId);
+    const API_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://open-wardrobe-market.com';
+    const url = `${API_URL}/api/collections/${itemId}`;
+
+    console.log('[studio] Toggling like (optimistic):', { itemId, isLiked, url });
+
+    // Mark as processing
+    setProcessingLikes(prev => new Set(prev).add(itemId));
+
+    // Optimistic UI update - instant feedback
+    const newLikedItems = new Set(likedItems);
+    if (isLiked) {
+      newLikedItems.delete(itemId);
+    } else {
+      newLikedItems.add(itemId);
+    }
+    setLikedItems(newLikedItems);
+
+    try {
+      const response = await fetch(url, {
+        method: isLiked ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[studio] Failed to toggle like, reverting:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+          itemId,
+        });
+
+        // Revert optimistic update on error
+        const revertedLikedItems = new Set(likedItems);
+        if (!isLiked) {
+          revertedLikedItems.delete(itemId);
+        } else {
+          revertedLikedItems.add(itemId);
+        }
+        setLikedItems(revertedLikedItems);
+        return;
+      }
+
+      console.log('[studio] Successfully toggled like:', { itemId, isLiked: !isLiked });
+    } catch (error) {
+      console.error('[studio] Failed to toggle like, reverting:', error);
+
+      // Revert optimistic update on error
+      const revertedLikedItems = new Set(likedItems);
+      if (!isLiked) {
+        revertedLikedItems.delete(itemId);
+      } else {
+        revertedLikedItems.add(itemId);
+      }
+      setLikedItems(revertedLikedItems);
+    } finally {
+      // Remove from processing
+      setProcessingLikes(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  };
+
+  // Only show loading screen if data is empty AND loading
+  if (loading && items.length === 0) {
+    return <View style={{ flex: 1, backgroundColor: '#EDEBE5' }} />;
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000000' }}>
+    <View style={{ flex: 1, backgroundColor: isContentReady ? '#000000' : '#EDEBE5' }}>
       <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />
-      <ReelSwiper items={items} />
+      <ReelSwiper
+        items={items}
+        likedItems={likedItems}
+        onLikePress={user ? toggleLike : undefined}
+        onLayout={() => {
+          requestAnimationFrame(() => {
+            console.log('[StudioScreen] Content ready, signaling splash');
+            setIsContentReady(true);
+            setAppReady();
+          });
+        }}
+      />
     </View>
   );
 }
