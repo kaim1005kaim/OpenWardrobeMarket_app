@@ -20,6 +20,8 @@
     "@supabase/supabase-js": "^2.84.0",
     "axios": "^1.13.2",
     "expo": "~52.0.47",
+    "expo-av": "~15.0.2",
+    "expo-blur": "~14.0.3",
     "expo-file-system": "~18.0.12",
     "expo-font": "~13.0.4",
     "expo-gl": "~15.0.5",
