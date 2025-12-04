@@ -16,9 +16,6 @@
     "production": {
       "autoIncrement": true,
       "node": "20.19.4",
-      "env": {
-        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
-      },
       "android": {
         "buildType": "apk"
       }
