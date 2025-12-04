@@ -3,12 +3,12 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
-import '../global.css';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { AnimatedSplashScreen } from '@/components/AnimatedSplashScreen';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -29,6 +29,7 @@ export default function RootLayout() {
     'Trajan': require('../assets/fonts/trajan-pro-regular.ttf'),
     ...FontAwesome.font,
   });
+  const [showSplash, setShowSplash] = useState(true);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -41,8 +42,16 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
+  const handleSplashAnimationEnd = () => {
+    setShowSplash(false);
+  };
+
   if (!loaded) {
     return null;
+  }
+
+  if (showSplash) {
+    return <AnimatedSplashScreen onAnimationEnd={handleSplashAnimationEnd} />;
   }
 
   return <RootLayoutNav />;
