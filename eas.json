@@ -22,7 +22,6 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://open-wardrobe-market.com",
         "EXPO_PUBLIC_R2_PUBLIC_BASE_URL": "https://assets.open-wardrobe-market.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "623835591545-up82mlqpduos3ogl8qv8004m23tp1srm.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_AI_API_KEY": "AIzaSyA-wX9oFDbhp0TrJGMLm5WqOtXDoPhOs88",
         "EXPO_PUBLIC_FUSION_MODE": "vercel"
       },
       "android": {
